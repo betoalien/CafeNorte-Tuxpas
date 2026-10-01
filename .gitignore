@@ -1,0 +1,57 @@
+# Challenge attachments
+datos_cafenorte*.zip
+TX Challenge Data Solutions Engineer.docx
+TX Challenge Data Solutions Engineer.pdf
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local and generated data
+.dist/
+data/bronze/
+data/silver/
+data/gold/
+data/quarantine/
+*.prdx
+*.duckdb
+
+# PostgreSQL local storage
+postgres-data/
+.postgres/
+
+# dbt generated outputs
+dbt/**/target/
+dbt/**/logs/
+dbt/**/dbt_packages/
+
+# Runtime evidence and logs
+artifacts/evidence/*
+artifacts/manifests/*
+artifacts/reports/*
+!artifacts/evidence/.gitkeep
+!artifacts/evidence/profiling.md
+!artifacts/evidence/block-a-validation.md
+!artifacts/evidence/block-a1-validation.md
+!artifacts/manifests/.gitkeep
+!artifacts/reports/.gitkeep
+*.log
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+

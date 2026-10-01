@@ -1,0 +1,128 @@
+# Bitácora de IA
+
+## Estado
+
+Bitácora iniciada durante la fase de análisis y arquitectura. Se actualizará conforme avance la implementación.
+
+## Herramientas
+
+- OpenAI Codex, familia GPT-5; no se afirma un identificador más específico porque la interfaz no lo mostró.
+- Claude Code (Claude Opus 5.5), utilizado como revisor técnico independiente.
+- Herramientas locales de inspección de archivos y perfilado de datos.
+- Documentación oficial de AWS, dbt y PardoX para validar capacidades y costos.
+
+## Flujo de trabajo
+
+El ciclo es: **Codex implementa**, **Claude Code revisa con dureza** supuestos, costos, consistencia y riesgos, y **el propietario decide** qué aceptar, modificar o rechazar. Codex aplica la decisión y presenta evidencia; Claude puede revisar la nueva versión. Cuando los agentes no comparten todo el contexto, el propietario resuelve la discrepancia y la bitácora registra la corrección. La especificación permanece separada de la implementación.
+
+## Prompts y decisiones clave
+
+### Prompt 1: Analizar antes de implementar
+
+**Prompt:** "Analiza la documentación, la carpeta datos y UNIVERSAL_ARCHITECTURE.md; primero analicemos lo que requiere antes de dar algún paso".
+
+**Respuesta resumida:** Codex identificó entregables, pesos de evaluación, hallazgos de calidad y una arquitectura serverless proporcional al volumen.
+
+**Decisión humana:** Modificar. Se aceptó la proporcionalidad, pero dbt pasó a ser obligatorio por la importancia de la capa semántica.
+
+### Prompt 2: Hacer dbt obligatorio
+
+**Prompt:** "dbt debe dejar de ser opcional y usarse, porque precisamente parte del reto es la capa semántica".
+
+**Respuesta resumida:** Se separaron responsabilidades entre Pydantic, Polars, dbt, DuckDB y Docker, y se propuso una estructura Harness.
+
+**Decisión humana:** Modificar. Se conservaron Pydantic, Polars, dbt y Docker; posteriormente PostgreSQL sustituyó a DuckDB como capa de servicio.
+
+### Prompt 3: Incorporar PardoX
+
+**Prompt:** "PardoX es el motor que yo programé; la idea es hacer una alternativa y decir que yo desarrollé este motor por esta situación".
+
+**Respuesta resumida:** Tras leer la documentación, se propuso un adaptador alternativo, pruebas de paridad con Polars y una demostración reproducible sin depender de funciones futuras.
+
+**Decisión humana:** Aceptar con restricciones. PardoX será diferenciador técnico; Polars permanecerá como referencia para reducir riesgo.
+
+### Prompt 4: Elegir motor de serving
+
+**Prompt:** "Tengo dudas entre DuckDB o PostgreSQL; Polars o PardoX dan el músculo y la base solo sirve al dashboard".
+
+**Respuesta resumida:** Codex recomendó PostgreSQL por concurrencia, integración con dbt y compatibilidad con los consumidores.
+
+**Decisión humana:** Aceptar. PostgreSQL será la persistencia y capa de servicio local; DuckDB queda fuera del camino principal.
+
+### Prompt 5: Definir el alcance del visor
+
+**Prompt:** "Elimina el punto 5; esto no es parte del proyecto" y, posteriormente, "Apache Superset debe formar parte del Docker final para que el cliente ingrese con el usuario y contraseña asignados y vea los dashboards".
+
+**Respuesta resumida:** El visor se retiró inicialmente. Después de la ampliación explícita del propietario, Codex incorporó Superset, costos, seguridad y operación; una iteración mezcló el conector productivo de Athena con el flujo local.
+
+**Decisión humana:** Modificar. Superset sí es entregable. Localmente usa `psycopg2` contra PostgreSQL `analytics`, Redis, credenciales de demostración y RLS. En AWS usa el conector Athena, OAuth, Let's Encrypt y HTTPS. La región no se divide: todo `us-east-1` con Lightsail, o todo `mx-central-1` con EC2 si Jurídico exige residencia.
+
+### Prompt 6: Implementar únicamente el Bloque A
+
+**Prompt:** "Inicia la implementación según AGENTS.md, docs/specs y los ADR. Solo Bloque A; detente al terminar para revisión". El alcance incluyó perfilado previo, harness Bash, PostgreSQL en Docker, proyecto Python con uv, Ruff y evidencia.
+
+**Trabajo realizado:** Codex generó un perfilador reproducible sin transformar Silver, fijó dependencias en `pyproject.toml` y `uv.lock`, implementó Compose con PostgreSQL versionado, inicialización idempotente, roles, schemas y `superset_meta`, y creó los seis scripts operativos. Se probaron arranque limpio, segundo arranque, estado, validación, reinicio, detención y ambos caminos de reset. Los hashes demostraron que `datos/` permaneció inmutable.
+
+**Hallazgos frente a la especificación:** `sales.csv` solo contiene MXN, por lo que el caso de FX
+USD/EUR de SPEC-002 no se ejerce en POS; las monedas extranjeras aparecen en e-commerce. En ese
+momento Codex infirió erróneamente que `E` debía interpretarse como egreso, aun cuando todos los
+tipos tenían cantidades y montos positivos. El Bloque A-1 eliminó esa inferencia y documentó la
+decisión del propietario.
+
+**Estado:** Bloque A implementado y detenido para revisión. No se programó ingestión Silver, PardoX, dbt ni Superset.
+
+### Prompt 7: Corregir el Bloque A antes de Silver
+
+**Prompt:** "Bloque A-1 (correcciones antes del Bloque B). No avances a Silver; detente al
+terminar para revisión". El propietario pidió puerto local aleatorio y secretos estables, ampliar
+el perfilado de FX, CFDI, tiendas, horarios, mappings y prompt injection, y cerrar nueve
+interpretaciones de negocio.
+
+**Trabajo realizado:** Codex reforzó el harness para generar `.env` una sola vez con puerto libre
+y contraseñas aleatorias, añadió validación Bash/ShellCheck/Ruff y regeneró el perfil desde las
+fuentes. Se midió FX sobre e-commerce, la serie EUR=22.0, duplicados de snapshots, horarios por
+zona, catálogo de tiendas y conciliación explícita+producto. Las decisiones se propagaron a
+contratos, métricas y README sin implementar Silver.
+
+**Decisión humana:** Aceptar las nueve interpretaciones expresadas por el propietario. En
+particular, ningún tipo de CFDI altera el signo de la venta; el número de producto es fallback
+válido solo bajo las reglas documentadas; EUR=22.0 se usa con bandera de calidad.
+
+**Estado:** Bloque A-1 implementado y detenido para revisión; Bloque B no iniciado.
+
+## Casos de error de IA o revisión
+
+- **PardoX malinterpretado:** Codex interpretó inicialmente "PardoX" como "Parquet". El propietario aclaró que es su motor DataFrame; se leyó la documentación y se incorporó con pruebas de paridad.
+- **Costo incompleto:** Codex generó la estimación de **USD 2.53/mes**; Claude detectó en la revisión cruzada que omitía ingesta, secretos, seguridad, dev/test, contingencia y visor productivo. Codex reconstruyó el modelo por bloques con fuentes y supuestos.
+- **Instrucción del visor atribuida incorrectamente:** Claude reintrodujo el visor sin conocer la instrucción previa del propietario de retirarlo y acusó erróneamente a Codex de haberla ignorado. El propietario detectó la inconsistencia. La lección es que una revisión entre agentes sin contexto compartido puede producir conclusiones falsas; las atribuciones deben comprobarse contra la conversación completa.
+- **Arquitectura partida:** Claude recomendó `mx-central-1`, pero Lightsail no existe allí; combinar datos en México con Superset en Virginia creó transferencia entre regiones. Se corrigió a dos opciones coherentes y excluyentes: todo `us-east-1` con Lightsail o todo `mx-central-1` con EC2.
+- **CFDI interpretado como operación aritmética:** Claude interpretó `tipo_comprobante` según
+  categorías del SAT y propuso restar `E` y excluir `P`, `T` y `N`, lo que habría omitido o
+  invertido aproximadamente MXN 1.4 millones de ventas reales. El propietario corrigió que un
+  CFDI se cuenta, no se suma. El perfilado confirmó cantidades positivas y rangos de precio
+  unitario superpuestos en los cinco tipos.
+- **Regla sin evidencia:** Codex propuso previamente "`E` resta; los demás suman" sin evidencia
+  en los datos. La regla fue eliminada del perfil y sustituida por la decisión del propietario.
+
+## Hallazgos de revisión aceptados
+
+- Claude detectó que la identidad de producto es recuperable mediante el número común de tres
+  dígitos en POS, ERP y Shopify. Codex lo midió con prioridad para mapping explícito y validación
+  del nombre normalizado en Shopify.
+
+## Supuestos humanos corregidos por la IA
+
+- **Tamaño y precio de Superset:** el propietario estimó inicialmente USD 20. Claude señaló el requisito de 4 GB de RAM; Codex verificó la tarifa oficial de Lightsail de USD 24/mes, más snapshots.
+
+## Decisiones rechazadas o pospuestas
+
+- Kafka fue rechazado porque las fuentes se procesan por lotes y no existe un requisito de transmisión continua.
+- MWAA/Airflow fue pospuesto porque tres flujos batch no justifican su complejidad operacional.
+- Se rechazó reabrir DuckDB o rediseñar la arquitectura tecnológica: PostgreSQL y las responsabilidades de cada motor ya estaban resueltos en los ADR.
+- Se rechazaron las preguntas al reclutador propuestas por Claude sobre: (a) publicar PII en un repositorio público, (b) si los USD 200 incluían BI y (c) la frecuencia de actualización. No eran necesarias porque los datos son sintéticos, BI es un bonus decidido por el propietario y el procesamiento batch diario es un supuesto razonable para el volumen y el reto.
+- Superset es el visor principal. Tableau queda únicamente como bonus opcional, no como entregable requerido.
+- Las funciones de PardoX anunciadas para una versión futura no serán dependencia del reto.
+
+## Autocrítica provisional
+
+Las decisiones de alcance, dbt obligatorio, PardoX, PostgreSQL, Superset y región pertenecen al propietario. Codex implementa y documenta; Claude cuestiona; ninguno sustituye la decisión humana. La validez final exige reconciliaciones, pruebas dbt, paridad entre motores, aislamiento RLS, costos reproducibles y evidencia de ejecución.

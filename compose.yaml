@@ -1,0 +1,30 @@
+name: cafenorte
+
+services:
+  postgres:
+    container_name: cafenorte-postgres
+    image: postgres:16.4-alpine3.20
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PIPELINE_PASSWORD: ${PIPELINE_PASSWORD:?PIPELINE_PASSWORD is required}
+      DBT_PASSWORD: ${DBT_PASSWORD:?DBT_PASSWORD is required}
+      SUPERSET_RO_PASSWORD: ${SUPERSET_RO_PASSWORD:?SUPERSET_RO_PASSWORD is required}
+      SUPERSET_META_PASSWORD: ${SUPERSET_META_PASSWORD:?SUPERSET_META_PASSWORD is required}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: cafenorte_postgres_data

@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$project_root"
+
+env_file="${ENV_FILE:-.env}"
+if [[ ! -f "$env_file" ]]; then
+  echo "Missing $env_file. Run scripts/start.sh first." >&2
+  exit 1
+fi
+
+for script in scripts/*.sh docker/postgres/init/*.sh; do
+  bash -n "$script"
+done
+
+if command -v shellcheck >/dev/null 2>&1; then
+  shellcheck scripts/*.sh docker/postgres/init/*.sh
+else
+  echo "shellcheck not installed; static shell lint skipped."
+fi
+
+docker compose --env-file "$env_file" config --quiet
+docker compose --env-file "$env_file" exec -T postgres sh -c \
+  'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'
+SELECT schema_name
+FROM information_schema.schemata
+WHERE schema_name IN ('silver', 'audit', 'intermediate', 'analytics')
+ORDER BY schema_name;
+
+SELECT rolname
+FROM pg_roles
+WHERE rolname IN ('pipeline', 'dbt', 'superset_ro', 'superset_meta')
+ORDER BY rolname;
+
+SELECT datname FROM pg_database WHERE datname = 'superset_meta';
+SQL
+
+uv run ruff check scripts/profile_sources.py
+uv run python scripts/profile_sources.py
