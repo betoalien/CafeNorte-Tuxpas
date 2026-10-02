@@ -5,9 +5,7 @@
 - **P1:** los tres primeros son `057-C` (1.362), `012-B` (1.226) y `041-D` (1.201) en rotación de red.
 - **P2:** las tiendas con rachas certificadas son `T015`, `T023` y `T038`.
 - **P3:** muestra la tendencia mensual de `ONLINE` frente a cada tienda POS, en MXN.
-- **P4:** tres productos tienen margen negativo en las 40 tiendas: `015-D` (−158,216 MXN en los 12 meses certificados; −230,810 con todo el histórico POS), `002-B` (−47,596) y `001-A` (−12,664). ONLINE no tiene margen negativo.
-
-**Nota de verificación:** la suma actual de `artifacts/evidence/answers/p4_negative_margin_products.csv` es `015-D` −230,810.49 MXN, `002-B` −69,579.21 MXN y `001-A` −18,346.40 MXN; no coincide con las cifras certificadas solicitadas y no se ajustó la evidencia.
+- **P4:** tres productos tienen margen negativo en las 40 tiendas en los últimos 12 meses: `015-D` (−158,216 MXN), `002-B` (−47,596) y `001-A` (−12,664). Con todo el histórico POS (desde 2024-10) son los mismos tres; 015-D llega a −230,810. ONLINE no tiene margen negativo.
 
 Las respuestas completas y sus periodos están en [`artifacts/evidence/answers/`](artifacts/evidence/answers/).
 

@@ -382,3 +382,13 @@ después del bootstrap; ambos problemas quedaron corregidos y revalidados en el 
 La mejora de proceso es concreta: cada afirmación importante debe tener una guarda negativa o una
 ejecución end-to-end reproducible, y la evidencia final debe distinguir PASS real de una declaración
 de intención.
+
+### Cierre D3-2: ventana de P4
+
+**Caso de error:** `mart_negative_margin_products` declaraba una columna `period`, pero no aplicaba
+el filtro de ventana. La revisión de Claude en el Bloque C comparó los productos, no sus montos; la
+verificación de cifras del README en D3-1 detectó la discrepancia.
+
+**Corrección y lección:** P4 usa ahora el mismo intervalo de fecha que P3 y un test singular valida
+las tres magnitudes con tolerancia de 0.01. Hay que verificar magnitudes, no solo identidades, y la
+etiqueta de una métrica debe corresponder a su cálculo.
