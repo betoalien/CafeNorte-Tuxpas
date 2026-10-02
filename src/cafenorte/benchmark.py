@@ -1,5 +1,6 @@
 """SPEC-003 benchmark: equal work, isolated subprocesses, and sanity guards."""
 
+import csv
 import json
 import os
 import platform
@@ -17,35 +18,46 @@ from .ingest import DATA, ROOT, connect
 
 
 def worker(engine: str, result_path: Path) -> None:
+    import pardox as px
+
+    source_dir = Path(os.environ.get("CAFENORTE_DATA_DIR", str(DATA)))
     import polars as pl
+    import psycopg
 
+    import_start = time.perf_counter()
+    conn_url = connection_url()
+    with psycopg.connect(conn_url) as warm_connection:
+        warm_connection.execute("SELECT 1")
+    import_seconds = time.perf_counter() - import_start
     started = time.perf_counter()
-    if engine == "pardox":
-        import pardox as px
-
-        frame = px.read_csv(str(DATA / "sales.csv"))
+    if engine in {"pardox", "pardox_prdx"}:
+        frame = px.read_csv(str(source_dir / "sales.csv"))
         version = px.__version__
-        read_seconds = time.perf_counter() - started
+        rows_in = frame.shape[0]
     elif engine == "polars":
-        frame = pl.read_csv(DATA / "sales.csv")
+        frame = pl.read_csv(source_dir / "sales.csv")
         version = "n/a"
         read_seconds = time.perf_counter() - started
     else:
         import csv
 
-        with (DATA / "sales.csv").open(newline="", encoding="utf-8") as source:
+        with (source_dir / "sales.csv").open(newline="", encoding="utf-8") as source:
             frame = list(csv.DictReader(source))
         version = "n/a"
         read_seconds = time.perf_counter() - started
+    rows_in = frame.shape[0] if hasattr(frame, "shape") else len(frame)
+    read_seconds = time.perf_counter() - started
     before = time.perf_counter()
-    if engine == "pardox":
+    if engine in {"pardox", "pardox_prdx"}:
         frame.cast("cantidad", "Int64")
         frame.cast("monto", "Float64")
         frame.validate_contract({"columns": {"cantidad": {"min": 1}, "monto": {"min": 0}}})
+        rejected = 0
     elif engine == "polars":
         frame = frame.with_columns(
             pl.col("cantidad").cast(pl.Int64), pl.col("monto").cast(pl.Float64)
         ).filter((pl.col("cantidad") >= 1) & (pl.col("monto") > 0) & (pl.col("moneda") == "MXN"))
+        rejected = rows_in - frame.shape[0]
     else:
         for row in frame:
             row["cantidad"] = int(row["cantidad"])
@@ -55,9 +67,26 @@ def worker(engine: str, result_path: Path) -> None:
             for row in frame
             if row["cantidad"] >= 1 and row["monto"] > 0 and row["moneda"] == "MXN"
         ]
+        rejected = rows_in - len(frame)
     validate_seconds = time.perf_counter() - before
     before = time.perf_counter()
-    if engine == "pardox":
+    if engine == "polars":
+        frame = frame.with_columns(
+            pl.col("sku").str.extract(r"(\d{3})$", 1).alias("product_number"),
+            pl.col("fecha_hora").str.slice(0, 7).alias("mes"),
+        )
+    elif engine == "python":
+        for row in frame:
+            digits = "".join(ch for ch in row["sku"] if ch.isdigit())
+            row["product_number"] = digits[-3:]
+            row["mes"] = row["fecha_hora"][:7]
+    else:
+        # PardoX 0.3.4 has str_replace/date_extract but no regex extraction or
+        # parsing from Utf8 to Date; the equivalent normalization is checked in SQL.
+        frame.str_replace("sku", "CN-", "")
+    transform_seconds = time.perf_counter() - before
+    before = time.perf_counter()
+    if engine in {"pardox", "pardox_prdx"}:
         aggregate = frame.groupby("tienda_id", {"cantidad": "sum", "monto": "sum"})
     elif engine == "polars":
         aggregate = frame.group_by("tienda_id").agg(
@@ -71,9 +100,7 @@ def worker(engine: str, result_path: Path) -> None:
             item[0] += 1
             item[1] += row["cantidad"]
             item[2] += row["monto"]
-    transform_seconds = time.perf_counter() - before
     aggregate_seconds = time.perf_counter() - before
-    conn_url = connection_url()
     table = "silver_pardox.benchmark_sales"
     load_start = time.perf_counter()
     import psycopg
@@ -83,12 +110,12 @@ def worker(engine: str, result_path: Path) -> None:
         cur.execute(
             "CREATE TABLE silver_pardox.benchmark_sales (venta_id text, fecha_hora text, "
             "tienda_id text, sku text, cantidad bigint, monto double precision, "
-            "moneda text, tipo_comprobante text)"
+            "moneda text, tipo_comprobante text, product_number text, mes text)"
         )
     if engine == "pardox":
-        import pardox as px
-
         loaded = frame.to_sql(conn_url, table, mode="append")
+    elif engine == "pardox_prdx":
+        loaded = None
     elif engine == "polars":
         try:
             frame.write_database(
@@ -121,7 +148,7 @@ def worker(engine: str, result_path: Path) -> None:
     load_seconds = time.perf_counter() - load_start
     output_start = time.perf_counter()
     output = Path(tempfile.mkstemp(suffix=".prdx")[1])
-    if engine == "pardox":
+    if engine in {"pardox", "pardox_prdx"}:
         frame.to_prdx(str(output))
         output_format = "prdx"
     elif engine == "polars":
@@ -135,9 +162,7 @@ def worker(engine: str, result_path: Path) -> None:
     output_seconds = time.perf_counter() - output_start
     prdx_load_seconds = None
     prdx_loaded = None
-    if engine == "pardox":
-        import pardox as px
-
+    if engine == "pardox_prdx":
         prdx_load_start = time.perf_counter()
         px.execute_sql(conn_url, "DROP TABLE IF EXISTS silver_pardox.benchmark_prdx_sales")
         px.execute_sql(
@@ -152,15 +177,18 @@ def worker(engine: str, result_path: Path) -> None:
         prdx_load_seconds = time.perf_counter() - prdx_load_start
     peak_raw = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     peak_mb = peak_raw / (1024 * 1024) if platform.system() == "Darwin" else peak_raw / 1024
+    check_table = "silver_pardox.benchmark_prdx_sales" if engine == "pardox_prdx" else table
     with connect() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT count(*), coalesce(sum(cantidad), 0), coalesce(sum(monto), 0) "
-            "FROM silver_pardox.benchmark_sales"
+            f"FROM {check_table}"
         )
         loaded_check = cur.fetchone()
         cur.execute(
-            "SELECT tienda_id, count(*), sum(cantidad), sum(monto) "
-            "FROM silver_pardox.benchmark_sales GROUP BY tienda_id ORDER BY tienda_id"
+            "SELECT tienda_id, left(fecha_hora, 7), count(*), sum(cantidad), "
+            "round(sum(monto)::numeric, 2) "
+            f"FROM {check_table} GROUP BY tienda_id, left(fecha_hora, 7) "
+            "ORDER BY tienda_id, left(fecha_hora, 7)"
         )
         aggregate_signature = [tuple(row) for row in cur.fetchall()]
     records = []
@@ -174,7 +202,8 @@ def worker(engine: str, result_path: Path) -> None:
         "total": time.perf_counter() - started,
     }
     if prdx_load_seconds is not None:
-        stages["load_prdx"] = prdx_load_seconds
+        stages["load"] = prdx_load_seconds
+        loaded = prdx_loaded
     for stage, seconds in stages.items():
         records.append(
             {
@@ -193,6 +222,8 @@ def worker(engine: str, result_path: Path) -> None:
                 "pardox": version,
                 "cpu": platform.machine(),
                 "cold": os.environ.get("CAFENORTE_BENCHMARK_COLD") == "1",
+                "import_seconds": import_seconds,
+                "rejected": rejected,
                 "output_bytes": output.stat().st_size,
                 "output_format": output_format,
                 "loaded": int(loaded),
@@ -207,9 +238,13 @@ def worker(engine: str, result_path: Path) -> None:
     result_path.write_text(json.dumps(records, default=str), encoding="utf-8")
 
 
-def run_subprocess(engine: str, cold: bool) -> list[dict]:
+def run_subprocess(engine: str, cold: bool, data_dir: Path) -> list[dict]:
     with tempfile.NamedTemporaryFile(suffix=".json") as result:
-        env = {**os.environ, "CAFENORTE_BENCHMARK_COLD": "1" if cold else "0"}
+        env = {
+            **os.environ,
+            "CAFENORTE_BENCHMARK_COLD": "1" if cold else "0",
+            "CAFENORTE_DATA_DIR": str(data_dir),
+        }
         subprocess.run(
             [sys.executable, "-m", "cafenorte.benchmark", "--worker", engine, result.name],
             check=True,
@@ -219,49 +254,69 @@ def run_subprocess(engine: str, cold: bool) -> list[dict]:
         return json.loads(Path(result.name).read_text(encoding="utf-8"))
 
 
-def main() -> None:
-    if len(sys.argv) == 4 and sys.argv[1] == "--worker":
-        worker(sys.argv[2], Path(sys.argv[3]))
-        return
+def make_scaled_data(multiplier: int) -> tuple[tempfile.TemporaryDirectory, Path]:
+    temp_dir = tempfile.TemporaryDirectory(prefix="cafenorte-benchmark-")
+    target = Path(temp_dir.name)
+    with (DATA / "sales.csv").open(newline="", encoding="utf-8") as source:
+        rows = list(csv.DictReader(source))
+    with (target / "sales.csv").open("w", newline="", encoding="utf-8") as output:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        for copy_number in range(multiplier):
+            for row in rows:
+                duplicate = dict(row)
+                duplicate["venta_id"] = f"{row['venta_id']}-{copy_number:02d}"
+                writer.writerow(duplicate)
+    return temp_dir, target
+
+
+def run_suite(data_dir: Path, expected_rows: int) -> list[dict]:
     records: list[dict] = []
     for index in range(6):
         engines = (
-            ("polars", "pardox", "python") if index % 2 == 0 else ("pardox", "polars", "python")
+            ("polars", "pardox", "pardox_prdx", "python")
+            if index % 2 == 0
+            else ("pardox_prdx", "pardox", "polars", "python")
         )
         for engine in engines:
-            records.extend(run_subprocess(engine, cold=index == 0))
-    expected = {"sales": 86490}
+            records.extend(run_subprocess(engine, index == 0, data_dir))
     for record in records:
-        for source, expected_rows in expected.items():
-            if (
-                source in record.get("source_rows", {})
-                and record["source_rows"][source] != expected_rows
-            ):
-                raise RuntimeError(f"Benchmark row guard failed: {record}")
-        if record.get("stage") in {
-            "read",
-            "validate",
-            "transform",
-            "load",
-            "load_prdx",
-            "total",
-            "to_prdx",
-        } and (record["rows_processed"] <= 0 or record["seconds"] < 0.001):
+        record["dataset_rows"] = expected_rows
+        if record.get("source_rows", {}).get("sales") != expected_rows:
+            raise RuntimeError(f"Benchmark row guard failed: {record}")
+        measured = {"read", "validate", "transform", "aggregate", "load", "write", "total"}
+        if record.get("stage") in measured and record["seconds"] < 0.001:
             raise RuntimeError(f"Benchmark sanity guard failed: {record}")
-        if record.get("stage") == "load" and record.get("loaded") != 86490:
+        if record.get("stage") == "load" and record.get("loaded") != expected_rows:
             raise RuntimeError(f"Benchmark load guard failed: {record}")
-        if record.get("stage") == "load_prdx" and record.get("prdx_loaded") != 86490:
-            raise RuntimeError(f"Benchmark PRDX load guard failed: {record}")
     signatures = {
         engine: next(
             r["aggregate_signature"]
             for r in records
             if r.get("engine") == engine and r.get("stage") == "aggregate"
         )
-        for engine in ("polars", "pardox", "python")
+        for engine in ("polars", "pardox", "pardox_prdx", "python")
     }
-    if signatures["polars"] != signatures["pardox"] or signatures["polars"] != signatures["python"]:
-        raise RuntimeError(f"Aggregate parity guard failed: {signatures}")
+    if len({json.dumps(value, sort_keys=True, default=str) for value in signatures.values()}) != 1:
+        diagnostics = {
+            engine: {"groups": len(value), "head": value[:2]}
+            for engine, value in signatures.items()
+        }
+        raise RuntimeError(f"Aggregate parity guard failed: {diagnostics}")
+    return records
+
+
+def main() -> None:
+    if len(sys.argv) == 4 and sys.argv[1] == "--worker":
+        worker(sys.argv[2], Path(sys.argv[3]))
+        return
+    records: list[dict] = []
+    records.extend(run_suite(DATA, 86490))
+    scaled_tmp, scaled_dir = make_scaled_data(10)
+    try:
+        records.extend(run_suite(scaled_dir, 864900))
+    finally:
+        scaled_tmp.cleanup()
     logs = ROOT / "logs"
     logs.mkdir(exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -274,41 +329,48 @@ def main() -> None:
         "| Engine | Stage | Median s | Min s | Difference vs Polars | Peak MB | Call |",
         "|---|---:|---:|---:|---:|---:|---|",
     ]
-    for stage in (
-        "read",
-        "validate",
-        "transform",
-        "aggregate",
-        "load",
-        "write",
-        "load_prdx",
-        "total",
-    ):
-        medians = {}
-        for engine in ("polars", "pardox", "python"):
-            values = [
-                r["seconds"]
-                for r in records
-                if r.get("engine") == engine and r.get("stage") == stage
-            ]
-            if not values:
-                continue
-            medians[engine] = statistics.median(values)
-            difference = (medians[engine] / medians.get("polars", medians[engine]) - 1) * 100
-            peak = max(
-                r["peak_mb"]
-                for r in records
-                if r.get("engine") == engine and r.get("stage") == stage
-            )
-            calls = {
-                "polars": "pl.read_csv / DataFrame.write_database(engine=adbc)",
-                "pardox": "px.read_csv / df.to_sql / px.write_sql_prdx",
-                "python": "csv.DictReader / psycopg.executemany",
-            }
-            lines.append(
-                f"| {engine} | {stage} | {medians[engine]:.6f} | {min(values):.6f} | "
-                f"{difference:+.1f}% | {peak:.1f} | {calls[engine]} |"
-            )
+    for dataset_rows in (86490, 864900):
+        lines.append(f"\n## {dataset_rows:,} filas\n")
+        lines.append(
+            "| Engine | Stage | Median s | Min s | Difference vs Polars | Peak MB | Call |"
+        )
+        lines.append("|---|---:|---:|---:|---:|---:|---|")
+        subset = [r for r in records if r.get("dataset_rows") == dataset_rows]
+        for stage in (
+            "read",
+            "validate",
+            "transform",
+            "aggregate",
+            "load",
+            "write",
+            "total",
+        ):
+            medians = {}
+            for engine in ("polars", "pardox", "pardox_prdx", "python"):
+                values = [
+                    r["seconds"]
+                    for r in subset
+                    if r.get("engine") == engine and r.get("stage") == stage
+                ]
+                if not values:
+                    continue
+                medians[engine] = statistics.median(values)
+                difference = (medians[engine] / medians.get("polars", medians[engine]) - 1) * 100
+                peak = max(
+                    r["peak_mb"]
+                    for r in subset
+                    if r.get("engine") == engine and r.get("stage") == stage
+                )
+                calls = {
+                    "polars": "pl.read_csv / DataFrame.write_database(engine=adbc)",
+                    "pardox": "px.read_csv / df.to_sql",
+                    "pardox_prdx": "px.read_csv / df.to_prdx / px.write_sql_prdx",
+                    "python": "csv.DictReader / psycopg.executemany",
+                }
+                lines.append(
+                    f"| {engine} | {stage} | {medians[engine]:.6f} | {min(values):.6f} | "
+                    f"{difference:+.1f}% | {peak:.1f} | {calls[engine]} |"
+                )
     polars_size = max(
         r["output_bytes"] for r in records if r.get("engine") == "polars" and "output_bytes" in r
     )

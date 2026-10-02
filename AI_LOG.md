@@ -326,3 +326,20 @@ La documentación de `date_extract` exige una columna Date/Timestamp/Int64; `fec
 es Utf8 y el intento real devuelve `date_format ... expected Date/Timestamp/Int64`, por lo que no se
 simula una transformación PardoX inexistente: la fecha/mes debe normalizarse en la etapa contractual
 SQL compartida y queda documentada como limitación de esta versión.
+
+### Prompt 23: Bloque D2-4, benchmark corregido
+
+**Caso de error:** D2-3 cronometro la importación del binario PardoX dentro de `read`, sumó dos
+variantes de carga en un mismo total, compartió cronómetros entre transformación y agregación, no
+calculó `product_number` ni mes y no validó moneda ni rechazos. La escala x10 también empezó leyendo
+el directorio original porque el módulo había capturado `DATA` antes de aplicar `CAFENORTE_DATA_DIR`.
+
+**Corrección:** imports y conexión quedan fuera del total, con una etapa informativa `import`; cada
+etapa tiene su propio cronómetro; las variantes `pardox (to_sql)` y `pardox (write_sql_prdx)` tienen
+totales separados; se genera una copia temporal x10 con venta_id único y se exige paridad de grupos,
+unidades y monto redondeado a dos decimales.
+
+**Resultado real:** la escala base pasa. En x10 los totales globales de `write_sql_prdx` coinciden,
+pero su distribución tienda x mes produce 721 grupos frente a 720 y la guarda falla deliberadamente.
+No se relaja la prueba: queda como incompatibilidad reproducible de la ruta `write_sql_prdx` a esa
+escala en PardoX 0.3.4.

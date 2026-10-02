@@ -19,6 +19,9 @@ Por alcance de SPEC-003, solo `sales.csv` recorre PardoX de punta a punta; inven
 tipos de cambio permanecen en Polars por el alcance original de SPEC-003, no por una limitación
 inventada.
 
+El archivo Parquet puede ser menor que `.prdx`; el argumento de `.prdx` es la velocidad de escritura
+y recarga nativa, no una reducción garantizada de tamaño.
+
 <!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
 
 ## Objetivo
