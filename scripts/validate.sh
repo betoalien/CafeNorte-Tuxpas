@@ -17,7 +17,8 @@ done
 if command -v shellcheck >/dev/null 2>&1; then
   shellcheck scripts/*.sh docker/postgres/init/*.sh
 else
-  echo "shellcheck not installed; static shell lint skipped."
+  echo "shellcheck is required but not installed. Install ShellCheck before running validate.sh." >&2
+  exit 1
 fi
 
 docker compose --env-file "$env_file" config --quiet
@@ -37,4 +38,3 @@ SELECT datname FROM pg_database WHERE datname = 'superset_meta';
 SQL
 
 uv run ruff check scripts/profile_sources.py
-uv run python scripts/profile_sources.py

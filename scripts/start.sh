@@ -6,23 +6,8 @@ cd "$project_root"
 
 env_file="${ENV_FILE:-.env}"
 
-run_python() {
-  if command -v python3 >/dev/null 2>&1 && python3 -c 'pass' >/dev/null 2>&1; then
-    python3 "$@"
-  elif command -v python >/dev/null 2>&1 && python -c 'pass' >/dev/null 2>&1; then
-    python "$@"
-  elif command -v py >/dev/null 2>&1 && py -3 -c 'pass' >/dev/null 2>&1; then
-    py -3 "$@"
-  else
-    return 1
-  fi
-}
-
 random_port() {
-  run_python -c 'import secrets; print(20000 + secrets.randbelow(40001))' || {
-    echo "Python is required to select a random PostgreSQL port." >&2
-    return 1
-  }
+  printf '%s\n' "$((20000 + (RANDOM * 32768 + RANDOM) % 40001))"
 }
 
 port_is_free() {
@@ -31,34 +16,28 @@ port_is_free() {
   platform="$(uname -s)"
 
   if [[ "$platform" == "Darwin" ]] && command -v lsof >/dev/null 2>&1; then
-    ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
-    return
+    if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      return 1
+    fi
+    return 0
   fi
 
   if [[ "$platform" == "Linux" ]] && command -v ss >/dev/null 2>&1; then
-    ! ss -ltn | awk 'NR > 1 {print $4}' | grep -Eq "(^|:)$port$"
-    return
+    if ss -ltn | awk 'NR > 1 {print $4}' | grep -Eq "(^|:)$port$"; then
+      return 1
+    fi
+    return 0
   fi
 
   if [[ "$platform" == "Linux" ]] && command -v netstat >/dev/null 2>&1; then
-    ! netstat -ltn 2>/dev/null | awk 'NR > 2 {print $4}' | grep -Eq "(^|:)$port$"
-    return
+    if netstat -ltn 2>/dev/null | awk 'NR > 2 {print $4}' | grep -Eq "(^|:)$port$"; then
+      return 1
+    fi
+    return 0
   fi
 
-  if ! run_python - "$port" <<'PY'
-import socket
-import sys
-
-port = int(sys.argv[1])
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-    try:
-        probe.bind(("127.0.0.1", port))
-    except OSError:
-        raise SystemExit(1)
-PY
-  then
-    return 1
-  fi
+  echo "Cannot check whether port $port is free: install lsof on macOS or ss/netstat on Linux." >&2
+  exit 1
 }
 
 create_env_file() {

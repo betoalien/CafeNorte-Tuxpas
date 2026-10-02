@@ -81,8 +81,9 @@ fija además estas reglas de semántica:
 
 1. `tipo_comprobante` solo segmenta conteos de CFDI; todas las filas son ventas y ningún tipo
    cambia el signo de monto o cantidad.
-2. La identidad de producto usa mapping explícito y luego número con nombre validado; expone
-   `match_method` y separa lo no conciliado en Audit.
+2. La identidad de producto usa mapping explícito solo si `sku_erp` no es nulo y luego número con
+   nombre validado; `match_method` admite `explicit`, `product_number` y
+   `product_number_null_erp`, y separa lo no conciliado en Audit.
 3. `monto` es neto sin IVA como supuesto documentado.
 4. Las dimensiones de tienda proceden de `tiendas_info`; las ciudades/regiones inesperadas se
    publican como discrepancia de calidad.
@@ -92,4 +93,3 @@ fija además estas reglas de semántica:
 7. P4 usa tienda para POS y canal `ONLINE` para e-commerce.
 8. Toda ventana se ancla en 2026-03-31; P1 cubre 2025-10-01—2026-03-31 y MoM 2025-04 es `null`.
 9. `analytics.mart_source_reconciliation` explicará las diferencias entre las tres fuentes.
-

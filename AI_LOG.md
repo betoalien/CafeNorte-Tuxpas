@@ -90,6 +90,42 @@ válido solo bajo las reglas documentadas; EUR=22.0 se usa con bandera de calida
 
 **Estado:** Bloque A-1 implementado y detenido para revisión; Bloque B no iniciado.
 
+### Prompt 8: Revalidar en Mac después de migrar desde Windows
+
+**Prompt:** "Mientras Claude termina de revisar las tareas pendientes, vamos a analizar el proyecto
+completo, es una tarea para una entrevista tecnica todo parte del PDF, empezamos codeando en windows
+pero pasamos a Mac".
+
+**Trabajo realizado:** Codex confirmó que el PDF del reto no está presente en el checkout actual
+aunque está listado en `.gitignore`, revisó arquitectura, especificaciones, ADRs, scripts y
+evidencia, y ejecutó el harness en macOS. `start.sh` generó `.env` local ignorado por Git, levantó
+PostgreSQL en el puerto 23779 y dejó el contenedor `healthy`.
+
+**Corrección aplicada:** En macOS, `validate.sh` sí ejecutó ShellCheck y detectó SC2251 en tres
+negaciones de `port_is_free` dentro de `scripts/start.sh`; Windows había omitido ShellCheck por no
+tenerlo instalado. Se reescribieron esas ramas con `if ...; then return 1; fi; return 0` para
+preservar la lógica y cumplir ShellCheck.
+
+**Resultado:** La segunda ejecución de `./scripts/validate.sh` pasó en macOS: Compose validó,
+PostgreSQL expuso `analytics`, `audit`, `intermediate` y `silver`, los roles esperados existieron,
+`superset_meta` existió y Ruff terminó con `All checks passed!`.
+
+### Prompt 9: Bloque A-2 solo correcciones
+
+**Prompt:** "Bloque A-2. Solo correcciones; no avances a Silver. Detente al terminar para
+revisión". El propietario pidió corregir la conciliación para no contar `sku_erp = null` como
+mapping explícito, eliminar Python de `start.sh`, evitar que `validate.sh` regenere
+`profiling.md`, actualizar contratos/README/evidencia y hacer un commit único con lo pendiente.
+
+**Trabajo realizado:** Codex separó `match_method` en `explicit`, `product_number` y
+`product_number_null_erp`; regeneró `profiling.md`; actualizó contratos, métricas, README,
+runbook y evidencia; eliminó la dependencia de Python en la selección de puerto; y conservó el
+alcance sin implementar Silver, dbt, PardoX, Gold ni Superset.
+
+**Resultado:** Las cifras de mappings con `sku_erp` nulo coinciden con lo esperado para POS
+(6,132 filas / 2,524,147.68 MXN) y Shopify (1,139 filas). `CN-00016` se reportó con
+`handle = null` porque así está en `inventory.json`. ShellCheck y Ruff pasaron sin avisos.
+
 ## Casos de error de IA o revisión
 
 - **PardoX malinterpretado:** Codex interpretó inicialmente "PardoX" como "Parquet". El propietario aclaró que es su motor DataFrame; se leyó la documentación y se incorporó con pruebas de paridad.
@@ -103,6 +139,10 @@ válido solo bajo las reglas documentadas; EUR=22.0 se usa con bandera de calida
   unitario superpuestos en los cinco tipos.
 - **Regla sin evidencia:** Codex propuso previamente "`E` resta; los demás suman" sin evidencia
   en los datos. La regla fue eliminada del perfil y sustituida por la decisión del propietario.
+- **Cobertura inflada por clave nula:** Codex reportó 100% de cobertura contando como `explicit`
+  mappings que tenían la clave `sku_erp`, pero cuyo valor era `null`. Claude lo detectó al
+  contrastar contra `inventory.json`. Lección: que una clave exista no significa que su valor sea
+  válido; `sku_erp = null` es ausencia de mapping explícito.
 
 ## Hallazgos de revisión aceptados
 

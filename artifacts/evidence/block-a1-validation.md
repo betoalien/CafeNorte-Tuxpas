@@ -65,3 +65,36 @@ Los SHA-256 antes del ciclo start/restart/reset y después de `reset.sh --yes` f
 El reset confirmado dejó contenedor y volumen PostgreSQL eliminados. `.env` permanece ignorado y
 estable para que el siguiente `start.sh` reutilice el puerto y credenciales; ningún secreto se
 incluye en esta evidencia.
+
+## Revalidación en macOS
+
+Fecha: 2026-10-01 (America/Monterrey). Host: macOS con Docker Compose v5.1.1 y `uv` 0.10.5.
+
+Se ejecutó `./scripts/start.sh` desde un checkout migrado desde Windows. La primera ejecución creó
+`.env` local ignorado por Git, seleccionó `POSTGRES_PORT=23779`, descargó
+`postgres:16.4-alpine3.20`, creó el volumen `cafenorte_postgres_data` y dejó
+`cafenorte-postgres` en estado `healthy`.
+
+La primera ejecución de `./scripts/validate.sh` en macOS falló porque ShellCheck sí estaba
+instalado en este host y reportó SC2251 en tres negaciones de `port_is_free` dentro de
+`scripts/start.sh`; en la validación Windows ese control se había omitido por falta de ShellCheck.
+Se reescribieron esas ramas sin cambiar la semántica: si el puerto está ocupado se devuelve 1, si
+está libre se devuelve 0.
+
+La segunda ejecución de `./scripts/validate.sh` pasó con:
+
+```text
+schema_name: analytics, audit, intermediate, silver
+rolname: dbt, pipeline, superset_meta, superset_ro
+datname: superset_meta
+Ruff: All checks passed!
+```
+
+`./scripts/status.sh` confirmó:
+
+```text
+PostgreSQL host: 127.0.0.1
+PostgreSQL port: 23779
+Health: healthy
+/var/run/postgresql:5432 - accepting connections
+```

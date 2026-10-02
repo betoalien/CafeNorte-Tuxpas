@@ -20,7 +20,17 @@ Elimina solo recursos reproducibles del proyecto. Requiere `--yes`, muestra obje
 
 ### validate.sh
 
-Ejecuta contratos, pruebas Python, paridad de motores, `dbt build`, reconciliaciones y controles de privacidad.
+Ejecuta validaciones del harness local sin reescribir evidencia: sintaxis Bash, ShellCheck cuando
+está instalado, `docker compose config`, existencia de schemas/roles/base PostgreSQL y Ruff sobre
+el perfilador.
+
+El perfilado reproducible se ejecuta aparte cuando cambian las fuentes o sus reglas:
+
+```bash
+uv run python scripts/profile_sources.py
+```
+
+Ese comando regenera `artifacts/evidence/profiling.md`; `validate.sh` no debe modificarlo.
 
 ### status.sh
 
@@ -37,4 +47,3 @@ Muestra contenedores, healthchecks, ultima corrida, conteos por capa, estado dbt
 ## Recuperacion
 
 El pipeline debe reconstruir Silver y Gold desde Bronze. PostgreSQL no es la unica copia de los datos originales. Toda operacion de recuperacion debe registrar un nuevo `run_id`.
-

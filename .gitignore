@@ -45,6 +45,7 @@ artifacts/reports/*
 !artifacts/evidence/profiling.md
 !artifacts/evidence/block-a-validation.md
 !artifacts/evidence/block-a1-validation.md
+!artifacts/evidence/block-a2-validation.md
 !artifacts/manifests/.gitkeep
 !artifacts/reports/.gitkeep
 *.log
@@ -54,4 +55,3 @@ artifacts/reports/*
 .vscode/
 .DS_Store
 Thumbs.db
-

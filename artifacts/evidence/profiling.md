@@ -1,6 +1,6 @@
 # Perfilado reproducible de fuentes
 
-Generado: 2026-10-01T16:37:49-06:00
+Generado: 2026-10-01T19:50:41-06:00
 
 Los conteos provienen directamente de `datos/`; no se aplicaron transformaciones Silver ni se modificaron las fuentes.
 
@@ -140,16 +140,18 @@ Sesenta y tres observaciones EUR son exactamente `22.0`; la repetición del valo
 
 ## Conciliación de producto
 
-El número final de tres dígitos se extrajo de POS (`CN-00013` → `013`), ERP (`ERP-PROV-MX-013-B` → `013`) y Shopify (`…-013` → `013`). Se aplicó mapping explícito primero y número como respaldo; para Shopify el respaldo exige igualdad del nombre normalizado sin acentos, mayúsculas ni separadores.
+El número final de tres dígitos se extrajo de POS (`CN-00013` → `013`), ERP (`ERP-PROV-MX-013-B` → `013`) y Shopify (`…-013` → `013`). Se aplicó mapping explícito solo cuando `sku_erp` no es nulo; después se usa número como respaldo. Para Shopify el respaldo exige igualdad del nombre normalizado sin acentos, mayúsculas ni separadores.
 
-| Fuente | Método | Filas |
-| --- | --- | --- |
-| POS | explicit | 80273 |
-| POS | product_number | 6217 |
-| Shopify | explicit | 8098 |
-| Shopify | product_number | 1849 |
+| Fuente | Método | Filas | Unidades | Monto fuente (monedas mixtas, sin FX) |
+| --- | --- | --- | --- | --- |
+| POS | explicit | 74141 | 114284 | 26,989,097.62 |
+| POS | product_number | 6217 | 9547 | 1,434,008.52 |
+| POS | product_number_null_erp | 6132 | 9552 | 2,524,147.68 |
+| Shopify | explicit | 6959 | 9289 | 2,254,120.66 |
+| Shopify | product_number | 1849 | 2494 | 403,053.27 |
+| Shopify | product_number_null_erp | 1139 | 1509 | 326,939.13 |
 
-| Relación | Filas | Unidades | Monto fuente |
+| Relación | Filas | Unidades | Monto fuente (monedas mixtas, sin FX) |
 | --- | --- | --- | --- |
 | POS → ERP | 86490/86490 (100.00%) | 133383/133383 (100.00%) | 30,947,253.82/30,947,253.82 (100.00%) |
 | Shopify → ERP | 9947/9947 (100.00%) | 13292/13292 (100.00%) | 2,984,113.06/2,984,113.06 (100.00%) |
@@ -157,6 +159,23 @@ El número final de tres dígitos se extrajo de POS (`CN-00013` → `013`), ERP 
 ### Coincidencia de número con nombre distinto
 
 Ningún caso.
+
+### Mappings con `sku_erp` nulo
+
+Un mapping con clave presente pero `sku_erp = null` se trata como ausencia de mapping explícito. Esos casos solo se concilian si el número de producto recuperado existe en `catalogo.productos[].sku_erp`.
+
+| SKU POS | Handle Shopify | Número recuperado | SKU ERP en catálogo |
+| --- | --- | --- | --- |
+| CN-00006 | estándar-cafe-grano-006 | 006 | ERP-PROV-MX-006-C |
+| CN-00016 |  | 016 | ERP-PROV-MX-016-C |
+| CN-00026 | premium-cafe-molido-026 | 026 | ERP-PROV-MX-026-A |
+| CN-00036 | gourmet-cafe-grano-036 | 036 | ERP-PROV-MX-036-A |
+| CN-00046 | termo-mercancia-046 | 046 | ERP-PROV-MX-046-A |
+
+| Fuente | Filas | Unidades | Monto fuente (monedas mixtas, sin FX) |
+| --- | --- | --- | --- |
+| POS | 6132 | 9552 | 2,524,147.68 |
+| Shopify | 1139 | 1509 | 326,939.13 |
 
 Lo no conciliado se enviará a Audit; no se elimina ni se fuerza a un producto.
 
@@ -181,7 +200,7 @@ El DOCX contiene `customXML/item1.xml`, pero no instrucciones; tampoco se encont
 | Tema | Evidencia | Decisión |
 | --- | --- | --- |
 | CFDI | Cinco tipos; cantidades y montos positivos; rangos de precios superpuestos. | Todas son ventas. El CFDI se cuenta por tipo; el tipo nunca altera signo ni inclusión. |
-| Producto | Número común a POS, ERP y Shopify; nombres Shopify validables contra catálogo. | Explícito primero; respaldo por número+nombre; `match_method`; no conciliado a Audit. |
+| Producto | Número común a POS, ERP y Shopify; cinco mappings tienen `sku_erp` nulo y nombres Shopify validables contra catálogo. | Explícito solo con `sku_erp` válido; respaldo por número+nombre; `match_method`; no conciliado a Audit. |
 | IVA | No existe columna de impuesto; categorías con tasas 0% y 16%. | `monto` es importe neto sin IVA como supuesto documentado. |
 | Tiendas | ERP contiene ciudades no citadas y regiones inconsistentes. | `tiendas_info` es maestro; discrepancia reportada y pregunta abierta al cliente. |
 | FX | Cobertura diaria completa; EUR=22.0 exacto en 63 días. | Tasa de la fecha; se usa y se marca `fx_quality_flag` si es sospechosa. |

@@ -379,17 +379,47 @@ def mapping_coverage(
     mappings = inventory["sku_mappings"]
     products = inventory["catalogo"]["productos"]
     erp_by_number = {product_number(product["sku_erp"]): product for product in products}
+    method_order = {"explicit": 0, "product_number": 1, "product_number_null_erp": 2}
     explicit_pos = {
-        mapping["sku_pos"]: mapping["sku_erp"] for mapping in mappings if mapping.get("sku_pos")
+        mapping["sku_pos"]: mapping["sku_erp"]
+        for mapping in mappings
+        if mapping.get("sku_pos") and mapping.get("sku_erp")
     }
     explicit_handle = {
-        mapping["handle"]: mapping["sku_erp"] for mapping in mappings if mapping.get("handle")
+        mapping["handle"]: mapping["sku_erp"]
+        for mapping in mappings
+        if mapping.get("handle") and mapping.get("sku_erp")
     }
+    null_erp_pos = {
+        mapping["sku_pos"]: mapping
+        for mapping in mappings
+        if mapping.get("sku_pos") and mapping.get("sku_erp") is None
+    }
+    null_erp_handle = {
+        mapping["handle"]: mapping
+        for mapping in mappings
+        if mapping.get("handle") and mapping.get("sku_erp") is None
+    }
+    null_mapping_rows = []
+    for mapping in mappings:
+        if mapping.get("sku_erp") is not None:
+            continue
+        number = product_number(mapping.get("sku_pos"))
+        null_mapping_rows.append(
+            [
+                mapping.get("sku_pos") or "",
+                mapping.get("handle") or "",
+                number or "",
+                erp_by_number[number]["sku_erp"] if number in erp_by_number else "NO_EN_CATALOGO",
+            ]
+        )
 
     sales_methods: list[str | None] = []
     for sku in sales["sku"].to_list():
         if sku in explicit_pos:
             sales_methods.append("explicit")
+        elif sku in null_erp_pos and product_number(sku) in erp_by_number:
+            sales_methods.append("product_number_null_erp")
         elif product_number(sku) in erp_by_number:
             sales_methods.append("product_number")
         else:
@@ -410,7 +440,9 @@ def mapping_coverage(
         handle_name = re.sub(r"[-_]?\d{3}$", "", handle)
         normalized_handle = normalize_name(handle_name)
         normalized_catalog = normalize_name(product["nombre"])
-        if normalized_handle == normalized_catalog:
+        if handle in null_erp_handle and normalized_handle == normalized_catalog:
+            order_methods.append("product_number_null_erp")
+        elif normalized_handle == normalized_catalog:
             order_methods.append("product_number")
         else:
             order_methods.append(None)
@@ -419,19 +451,25 @@ def mapping_coverage(
 
     mapped_sales = sales_matches.filter(pl.col("match_method").is_not_null())
     mapped_orders = order_matches.filter(pl.col("match_method").is_not_null())
-    method_counts = [
-        ["POS", method, count]
-        for method, count in sales_matches.group_by("match_method")
-        .len()
-        .sort("match_method")
-        .rows()
-    ] + [
-        ["Shopify", method, count]
-        for method, count in order_matches.group_by("match_method")
-        .len()
-        .sort("match_method")
-        .rows()
-    ]
+    def method_rows(source: str, frame: pl.DataFrame, amount_column: str) -> list[list[Any]]:
+        grouped = (
+            frame.filter(pl.col("match_method").is_not_null())
+            .group_by("match_method")
+            .agg(
+                pl.len().alias("filas"),
+                pl.col("cantidad").sum().alias("unidades"),
+                pl.col(amount_column).sum().alias("monto"),
+            )
+            .to_dicts()
+        )
+        return [
+            [source, row["match_method"], row["filas"], row["unidades"], money(row["monto"])]
+            for row in sorted(grouped, key=lambda row: method_order[row["match_method"]])
+        ]
+
+    method_counts = method_rows("POS", sales_matches, "monto") + method_rows(
+        "Shopify", order_matches, "amount"
+    )
     sales_units = mapped_sales["cantidad"].sum()
     total_sales_units = sales["cantidad"].sum()
     sales_amount = mapped_sales["monto"].sum()
@@ -473,13 +511,31 @@ def mapping_coverage(
         (
             "El número final de tres dígitos se extrajo de POS (`CN-00013` → `013`), ERP "
             "(`ERP-PROV-MX-013-B` → `013`) y Shopify (`…-013` → `013`). Se aplicó mapping "
-            "explícito primero y número como respaldo; para Shopify el respaldo exige igualdad del "
-            "nombre normalizado sin acentos, mayúsculas ni separadores."
+            "explícito solo cuando `sku_erp` no es nulo; después se usa número como respaldo. "
+            "Para Shopify el respaldo exige igualdad del nombre normalizado sin acentos, "
+            "mayúsculas ni separadores."
         ),
         "",
-        markdown_table(["Fuente", "Método", "Filas"], method_counts),
+        markdown_table(
+            [
+                "Fuente",
+                "Método",
+                "Filas",
+                "Unidades",
+                "Monto fuente (monedas mixtas, sin FX)",
+            ],
+            method_counts,
+        ),
         "",
-        markdown_table(["Relación", "Filas", "Unidades", "Monto fuente"], coverage_rows),
+        markdown_table(
+            [
+                "Relación",
+                "Filas",
+                "Unidades",
+                "Monto fuente (monedas mixtas, sin FX)",
+            ],
+            coverage_rows,
+        ),
         "",
         "### Coincidencia de número con nombre distinto",
         "",
@@ -490,6 +546,58 @@ def mapping_coverage(
             )
             if unique_mismatches
             else "Ningún caso."
+        ),
+        "",
+        "### Mappings con `sku_erp` nulo",
+        "",
+        (
+            "Un mapping con clave presente pero `sku_erp = null` se trata como ausencia de "
+            "mapping explícito. Esos casos solo se concilian si el número de producto recuperado "
+            "existe en `catalogo.productos[].sku_erp`."
+        ),
+        "",
+        markdown_table(
+            ["SKU POS", "Handle Shopify", "Número recuperado", "SKU ERP en catálogo"],
+            null_mapping_rows,
+        ),
+        "",
+        markdown_table(
+            [
+                "Fuente",
+                "Filas",
+                "Unidades",
+                "Monto fuente (monedas mixtas, sin FX)",
+            ],
+            [
+                [
+                    "POS",
+                    sales_matches.filter(
+                        pl.col("match_method") == "product_number_null_erp"
+                    ).height,
+                    sales_matches.filter(pl.col("match_method") == "product_number_null_erp")[
+                        "cantidad"
+                    ].sum(),
+                    money(
+                        sales_matches.filter(pl.col("match_method") == "product_number_null_erp")[
+                            "monto"
+                        ].sum()
+                    ),
+                ],
+                [
+                    "Shopify",
+                    order_matches.filter(
+                        pl.col("match_method") == "product_number_null_erp"
+                    ).height,
+                    order_matches.filter(pl.col("match_method") == "product_number_null_erp")[
+                        "cantidad"
+                    ].sum(),
+                    money(
+                        order_matches.filter(pl.col("match_method") == "product_number_null_erp")[
+                            "amount"
+                        ].sum()
+                    ),
+                ],
+            ],
         ),
         "",
         "Lo no conciliado se enviará a Audit; no se elimina ni se fuerza a un producto.",
@@ -558,12 +666,12 @@ def closed_interpretations(common_anchor: date, inventory_facts: dict[str, Any])
                 [
                     "Producto",
                     (
-                        "Número común a POS, ERP y Shopify; nombres Shopify validables contra "
-                        "catálogo."
+                        "Número común a POS, ERP y Shopify; cinco mappings tienen `sku_erp` "
+                        "nulo y nombres Shopify validables contra catálogo."
                     ),
                     (
-                        "Explícito primero; respaldo por número+nombre; `match_method`; no "
-                        "conciliado a Audit."
+                        "Explícito solo con `sku_erp` válido; respaldo por número+nombre; "
+                        "`match_method`; no conciliado a Audit."
                     ),
                 ],
                 [

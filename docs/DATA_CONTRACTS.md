@@ -90,10 +90,13 @@ en Audit. Las tasas EUR exactamente iguales a 22.0 se usan, pero reciben
 
 ## Integridad entre fuentes
 
-- La conciliación aplica primero el mapping explícito y después el número de producto de tres
-  dígitos común a POS, ERP y Shopify. El respaldo Shopify solo es válido si el nombre del handle
-  coincide con `catalogo.nombre` después de normalizar acentos, mayúsculas y separadores.
-- Cada registro conciliado conserva `match_method` con valor `explicit` o `product_number`.
+- La conciliación aplica primero el mapping explícito con `sku_erp` no nulo y después el número de
+  producto de tres dígitos común a POS, ERP y Shopify. Un mapping con `sku_erp = null` equivale a
+  ausencia de mapping explícito y solo puede conciliarse por respaldo si el número recuperado
+  existe en el catálogo ERP. El respaldo Shopify solo es válido si el nombre del handle coincide
+  con `catalogo.nombre` después de normalizar acentos, mayúsculas y separadores.
+- Cada registro conciliado conserva `match_method` con valor `explicit`, `product_number` o
+  `product_number_null_erp`.
 - Los mappings faltantes o fallidos se reportan en Audit, no se filtran.
 - Se mantiene un `canonical_product_id` nullable hasta resolver identidad.
 - La cobertura de mapping se publica por fuente y por monto/unidades afectados.
@@ -116,8 +119,9 @@ La cobertura combinada por filas, unidades y monto está cuantificada en
 Con evidencia en [profiling.md](../artifacts/evidence/profiling.md#interpretaciones-cerradas-por-el-propietario):
 
 1. Los cinco tipos de CFDI representan ventas; se cuentan por tipo y no cambian signos.
-2. Producto se concilia por mapping explícito y luego número+nombre; se registra `match_method` y
-   lo no conciliado va a Audit.
+2. Producto se concilia por mapping explícito con `sku_erp` no nulo y luego número+nombre; un
+   `sku_erp` nulo usa `product_number_null_erp`; se registra `match_method` y lo no conciliado va
+   a Audit.
 3. `monto` es neto sin IVA como supuesto por ausencia de impuesto y tasas distintas por categoría.
 4. `tiendas_info` es el maestro; sus discrepancias se reportan sin corregirlas silenciosamente.
 5. FX usa la tasa diaria; EUR=22.0 se conserva con `fx_quality_flag`.
@@ -126,4 +130,3 @@ Con evidencia en [profiling.md](../artifacts/evidence/profiling.md#interpretacio
 7. P4 conserva la tienda POS y asigna Shopify al canal `ONLINE`.
 8. Las ventanas se anclan en 2026-03-31; inventario cubre seis meses y MoM 2025-04 es `null`.
 9. Gold incorporará un mart de reconciliación POS/ERP/Shopify.
-
