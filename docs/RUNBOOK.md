@@ -46,6 +46,14 @@ uv run python scripts/profile_sources.py
 
 Ese comando regenera `artifacts/evidence/profiling.md`; `validate.sh` no debe modificarlo.
 
+### Inmutabilidad de fuentes
+
+Los cuatro archivos originales del cliente viven en `datos/` y no se editan. Sus SHA-256 están
+versionados en `datos/SHA256SUMS`. Para verificar desde la raíz: en macOS ejecuta
+`(cd datos && shasum -a 256 -c SHA256SUMS)`; en Linux usa
+`(cd datos && sha256sum -c SHA256SUMS)`. `validate.sh` ejecuta automáticamente el comando apropiado
+y falla con `fuente original del cliente modificada` ante cualquier diferencia.
+
 ### Datos nuevos
 
 La ingestión registra `skipped`, `incremental` o `full` por fuente en manifest y run log. Sin

@@ -21,6 +21,16 @@ else
   exit 1
 fi
 
+case "$(uname -s)" in
+  Darwin) checksum_command=(shasum -a 256 -c SHA256SUMS) ;;
+  Linux) checksum_command=(sha256sum -c SHA256SUMS) ;;
+  *) echo "Unsupported platform for source checksum verification." >&2; exit 1 ;;
+esac
+if ! (cd datos && "${checksum_command[@]}" >/dev/null); then
+  echo "fuente original del cliente modificada" >&2
+  exit 1
+fi
+
 docker compose --env-file "$env_file" config --quiet
 docker compose --env-file "$env_file" exec -T postgres sh -c \
   'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'

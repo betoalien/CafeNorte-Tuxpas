@@ -45,6 +45,9 @@ pequeños usan `full`. Para probar copias, usa `CAFENORTE_DATA_DIR`; `datos/` nu
 ## Calidad y Supuestos
 
 - Los cinco mappings con `sku_erp` nulo se conservan y se concilian por número de producto cuando procede.
+- Los cuatro archivos originales del cliente son inmutables. Verifica sus hashes desde la raíz con
+  `cd datos && shasum -a 256 -c SHA256SUMS` en macOS o `sha256sum -c SHA256SUMS` en Linux; `validate.sh`
+  ejecuta esta guarda y falla si aparece `fuente original del cliente modificada`.
 - CFDI no cambia signo ni inclusión; las 86,490 filas se cuentan por tipo.
 - `N/A` significa desconocido, nunca cero; EUR 22.0 se conserva con bandera de calidad.
 - `tiendas_info` es el maestro y sus tiendas/regiones fuera del relato se reportan, no se corrigen silenciosamente.

@@ -1,4 +1,5 @@
 import json
+import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -9,6 +10,16 @@ from cafenorte.contracts import EcommerceOrderRecord, MappingRecord, SnapshotRec
 from cafenorte.ingest import parse_records, snapshot_to_silver
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_original_source_checksums_match() -> None:
+    expected = {}
+    for line in (ROOT / "datos/SHA256SUMS").read_text().splitlines():
+        digest, filename = line.split(maxsplit=1)
+        expected[filename] = digest
+    for filename, digest in expected.items():
+        actual = hashlib.sha256((ROOT / "datos" / filename).read_bytes()).hexdigest()
+        assert actual == digest, f"fuente original del cliente modificada: {filename}"
 
 
 def test_na_is_unknown_not_zero() -> None:
