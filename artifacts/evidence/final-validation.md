@@ -2,18 +2,22 @@
 
 ## Clon limpio
 
+Referencia validada: commit `825d034` (`Use registered Superset bar chart`).
+
 Se ejecutó `docker compose down -v` en el proyecto previo y después un clon temporal sin `.env`,
 volúmenes ni entorno virtual previo. `uv sync` instaló desde `uv.lock` incluyendo PardoX 0.3.4.
 
 ```text
-./scripts/start.sh       PASS 35 s
-./scripts/validate.sh    PASS 41 s
-./scripts/start.sh       PASS 3 s, load_mode=skipped
-tiempo total medido     79 s
+uv sync                  PASS 14 s
+./scripts/start.sh       PASS 53 s
+./scripts/validate.sh    PASS 47 s
+./scripts/start.sh       PASS 4 s, load_mode=skipped
+tiempo total medido     118 s
 anchor_date              2026-03-31
 dbt                      PASS=67 WARN=0 ERROR=0 SKIP=0
-pytest                   28 passed
+pytest                   31 passed
 Superset RLS/API         PASS; dashboard charts=6
+Superset dashboard layout PASS (ROOT/GRID, 6 charts) para director y gerente_t001
 ```
 
 La primera ejecución creó `.env` con permisos 600, cuatro fuentes fueron cargadas, y la segunda
