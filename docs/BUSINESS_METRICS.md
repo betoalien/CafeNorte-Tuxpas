@@ -81,9 +81,9 @@ fija además estas reglas de semántica:
 
 1. `tipo_comprobante` solo segmenta conteos de CFDI; todas las filas son ventas y ningún tipo
    cambia el signo de monto o cantidad.
-2. La identidad de producto usa mapping explícito solo si `sku_erp` no es nulo y luego número con
-   nombre validado; `match_method` admite `explicit`, `product_number` y
-   `product_number_null_erp`, y separa lo no conciliado en Audit.
+2. Silver solo expone las columnas técnicas; dbt resuelve la identidad de producto. La regla usa
+   mapping explícito solo si `sku_erp` no es nulo y luego número con nombre validado; `match_method`
+   admite `explicit`, `product_number` y `product_number_null_erp`, y separa lo no conciliado en Audit.
 3. `monto` es neto sin IVA como supuesto documentado.
 4. Las dimensiones de tienda proceden de `tiendas_info`; las ciudades/regiones inesperadas se
    publican como discrepancia de calidad.

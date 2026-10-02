@@ -37,4 +37,9 @@ ORDER BY rolname;
 SELECT datname FROM pg_database WHERE datname = 'superset_meta';
 SQL
 
+set -a
+# shellcheck disable=SC1090
+. "$env_file"
+set +a
+uv run pytest
 uv run ruff check scripts/profile_sources.py

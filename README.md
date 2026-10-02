@@ -2,9 +2,9 @@
 
 ## Estado
 
-Bloques A y A-1 implementados: perfilado reproducible, contratos, decisiones y harness
-PostgreSQL local. Bloque A-2 en curso con correcciones de conciliación y validación macOS.
-Silver, dbt, PardoX, Gold y Superset permanecen pendientes.
+Bloques A, A-1 y B implementados: perfilado, contratos, harness y Bronze → Silver reproducible.
+El Bloque B conserva cuarentena, manifiestos, hashes e idempotencia; `match_method` queda para
+dbt en el Bloque C. dbt, PardoX, Gold, Redis y Superset permanecen pendientes para C/D.
 
 ## Objetivo
 
@@ -167,9 +167,9 @@ misma configuración.
 ## Ejecución
 
 ```bash
-./scripts/start.sh      # genera .env (solo la primera vez) y levanta PostgreSQL
-./scripts/status.sh     # estado del contenedor, puerto y schemas
-./scripts/validate.sh   # validaciones del harness (ShellCheck, Ruff, PostgreSQL)
+./scripts/start.sh      # genera .env, levanta PostgreSQL y ejecuta Bronze → Silver
+./scripts/status.sh     # estado, último run_id y conteos de Silver
+./scripts/validate.sh   # ShellCheck, pytest, Ruff y controles PostgreSQL
 ./scripts/restart.sh    # reinicia conservando puerto y credenciales
 ./scripts/stop.sh       # detiene los servicios
 ./scripts/reset.sh      # sin --yes solo muestra lo que borraría
@@ -202,10 +202,11 @@ Estas reglas fueron cerradas por el propietario a partir de la
 
 1. `tipo_comprobante` es un atributo del CFDI. Todas las filas son ventas; el CFDI se cuenta por
    tipo y nunca hace que monto o cantidad se sumen, resten o excluyan de forma distinta.
-2. La conciliación usa mapping explícito primero solo cuando `sku_erp` no es nulo, y número de
-   producto con nombre validado como respaldo. `sku_erp = null` equivale a ausencia de mapping
-   explícito y usa `product_number_null_erp` si el número existe en el catálogo ERP. `match_method`
-   será `explicit`, `product_number` o `product_number_null_erp`; lo no conciliado va a Audit.
+2. Silver solo expone las columnas técnicas. La conciliación se resuelve en dbt: mapping explícito
+   primero solo cuando `sku_erp` no es nulo, y número de producto con nombre validado como respaldo.
+   `sku_erp = null` equivale a ausencia de mapping explícito y puede producir
+   `product_number_null_erp`; `match_method` será `explicit`, `product_number` o
+   `product_number_null_erp`; lo no conciliado va a Audit.
 3. `monto` se supone neto sin IVA: no hay campo de impuesto y las categorías tienen tasas 0%/16%.
 4. `tiendas_info` del ERP es el maestro. Sus diferencias contra el relato del cliente se reportan.
 5. FX usa la tasa del día. EUR=22.0 se usa con `fx_quality_flag` por posible truncamiento.

@@ -109,6 +109,11 @@ while [[ "$attempt" -le 30 ]]; do
   health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-postgres 2>/dev/null || true)"
   if [[ "$health" == "healthy" ]] && docker compose --env-file "$env_file" exec -T postgres \
     sh -c 'pg_isready --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' >/dev/null 2>&1; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$env_file"
+    set +a
+    uv run python -m cafenorte.ingest
     bash "$project_root/scripts/status.sh"
     exit 0
   fi

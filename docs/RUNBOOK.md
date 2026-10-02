@@ -4,7 +4,9 @@
 
 ### start.sh
 
-Valida prerrequisitos, construye imagenes, levanta PostgreSQL, Redis y Superset, crea la base separada `superset_meta`, ejecuta contratos, Silver, paridad PardoX, `dbt build`, carga dashboards y evidencia. En local, Superset conecta al schema `analytics` por `psycopg2`; no levanta OAuth, Let's Encrypt ni proxy HTTPS. Debe poder repetirse sin duplicar datos ni regenerar contraseñas existentes.
+Valida prerrequisitos, levanta PostgreSQL y ejecuta la corrida completa Bronze → Silver. La carga
+usa Polars, Pydantic, manifiestos SHA-256 y reemplazo transaccional de tablas Silver. Redis,
+Superset, dbt y PardoX están fuera del Bloque B.
 
 ### stop.sh
 
@@ -20,9 +22,12 @@ Elimina solo recursos reproducibles del proyecto. Requiere `--yes`, muestra obje
 
 ### validate.sh
 
-Ejecuta validaciones del harness local sin reescribir evidencia: sintaxis Bash, ShellCheck cuando
-está instalado, `docker compose config`, existencia de schemas/roles/base PostgreSQL y Ruff sobre
-el perfilador.
+Ejecuta validaciones del harness sin reescribir evidencia: sintaxis Bash, ShellCheck obligatorio,
+`docker compose config`, pytest, existencia de schemas/roles/base PostgreSQL y Ruff.
+
+La ingestión directa se puede repetir con `uv run python -m cafenorte.ingest`; cada ejecución usa
+un `run_id`, reemplaza Silver dentro de una transacción y deja su manifiesto en
+`artifacts/manifests/<run_id>.json` y `audit.ingestion_manifest`.
 
 El perfilado reproducible se ejecuta aparte cuando cambian las fuentes o sus reglas:
 
@@ -34,7 +39,7 @@ Ese comando regenera `artifacts/evidence/profiling.md`; `validate.sh` no debe mo
 
 ### status.sh
 
-Muestra contenedores, healthchecks, ultima corrida, conteos por capa, estado dbt, caché y URL local de Superset.
+Muestra contenedores, healthcheck, último `run_id`, conteos de ejecución y filas Silver.
 
 ## Fallos
 

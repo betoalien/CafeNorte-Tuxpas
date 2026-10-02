@@ -166,3 +166,22 @@ alcance sin implementar Silver, dbt, PardoX, Gold ni Superset.
 ## Autocrítica provisional
 
 Las decisiones de alcance, dbt obligatorio, PardoX, PostgreSQL, Superset y región pertenecen al propietario. Codex implementa y documenta; Claude cuestiona; ninguno sustituye la decisión humana. La validez final exige reconciliaciones, pruebas dbt, paridad entre motores, aislamiento RLS, costos reproducibles y evidencia de ejecución.
+
+### Prompt 10: Bloque B Bronze → Silver
+
+**Prompt:** "Implementar Bronze → Silver sin avanzar a dbt, Gold, PardoX ni Superset, con contratos
+Pydantic, cuarentena, manifiestos, hashes, carga Polars idempotente, controles de PII y evidencia
+macOS".
+
+**Decisiones:** la entrada única es `uv run python -m cafenorte.ingest`; cada corrida genera un
+UUID y timestamp, calcula SHA-256 antes/después y reemplaza las tablas Silver dentro de una
+transacción. Los snapshots duplicados futuros conservarán la primera fila y enviarán las siguientes
+a Audit. `N/A` es desconocido y se carga como `stock_quantity = null`. Silver no calcula
+`match_method`: por decisión del propietario y coherencia con ADR-003, dbt lo resolverá en el
+Bloque C; Silver solo expone `product_number` y `handle_name_normalized`.
+
+**Errores reales corregidos:** el primer validador aplicó `ge=0` al literal `N/A`; se reemplazó
+por una validación explícita que acepta `N/A` o enteros no negativos. Después, el pipeline intentó
+crear schemas con `pipeline` y falló por permisos; se eliminó esa creación redundante porque el
+init de PostgreSQL es su propietario. La comparación de sumas en pytest se ajustó a `Decimal`,
+sin alterar datos ni cifras esperadas.

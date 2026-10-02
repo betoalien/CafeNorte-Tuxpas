@@ -95,8 +95,9 @@ en Audit. Las tasas EUR exactamente iguales a 22.0 se usan, pero reciben
   ausencia de mapping explícito y solo puede conciliarse por respaldo si el número recuperado
   existe en el catálogo ERP. El respaldo Shopify solo es válido si el nombre del handle coincide
   con `catalogo.nombre` después de normalizar acentos, mayúsculas y separadores.
-- Cada registro conciliado conserva `match_method` con valor `explicit`, `product_number` o
-  `product_number_null_erp`.
+- Silver no decide ni materializa `match_method`: solo expone `product_number` y, para Shopify,
+  `handle_name_normalized`. dbt resolverá la regla de negocio en el Bloque C con valores
+  `explicit`, `product_number` o `product_number_null_erp`.
 - Los mappings faltantes o fallidos se reportan en Audit, no se filtran.
 - Se mantiene un `canonical_product_id` nullable hasta resolver identidad.
 - La cobertura de mapping se publica por fuente y por monto/unidades afectados.
@@ -114,14 +115,22 @@ La cobertura combinada por filas, unidades y monto está cuantificada en
 | intermediate | dbt | dbt | modelos internos |
 | analytics | dbt | BI | dimensiones, hechos, agregados y marts |
 
+## Tablas Silver implementadas
+
+`silver.pos_sales`, `silver.inventory_snapshots`, `silver.stores`, `silver.products`,
+`silver.sku_mappings`, `silver.ecommerce_orders` y `silver.exchange_rates` son propiedad de la
+ingestión Polars. Todas incluyen `run_id` e `ingested_at`; las tablas de hechos conservan los
+campos originales requeridos por fuente y las columnas técnicas de producto, sin PII de Shopify.
+`audit.ingestion_manifest`, `audit.quarantine` y `audit.run_log` registran trazabilidad y calidad.
+
 ## Decisiones transversales cerradas
 
 Con evidencia en [profiling.md](../artifacts/evidence/profiling.md#interpretaciones-cerradas-por-el-propietario):
 
 1. Los cinco tipos de CFDI representan ventas; se cuentan por tipo y no cambian signos.
-2. Producto se concilia por mapping explícito con `sku_erp` no nulo y luego número+nombre; un
-   `sku_erp` nulo usa `product_number_null_erp`; se registra `match_method` y lo no conciliado va
-   a Audit.
+2. Producto se concilia en dbt, no en Silver: Silver expone mapping, `product_number` y nombre
+   normalizado; dbt aplicará mapping explícito con `sku_erp` no nulo y luego número+nombre. Un
+   `sku_erp` nulo podrá producir `product_number_null_erp`; lo no conciliado irá a Audit.
 3. `monto` es neto sin IVA como supuesto por ausencia de impuesto y tasas distintas por categoría.
 4. `tiendas_info` es el maestro; sus discrepancias se reportan sin corregirlas silenciosamente.
 5. FX usa la tasa diaria; EUR=22.0 se conserva con `fx_quality_flag`.

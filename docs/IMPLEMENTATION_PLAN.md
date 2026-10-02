@@ -11,10 +11,7 @@
 ## Fase 1 Harness y plataforma local
 
 - Crear proyecto Python y versiones fijadas.
-- Crear Dockerfile y Compose local con PostgreSQL, Redis y Superset, sin proxy TLS.
-- Crear `superset_meta` como base separada en la misma instancia PostgreSQL.
-- Conectar Superset al schema `analytics` mediante `psycopg2` con usuario de solo lectura y RLS por tienda.
-- Cargar dashboards versionados y crear credenciales iniciales desde secretos externos.
+- Crear Compose local con PostgreSQL, sin Redis ni Superset en esta fase.
 - Implementar healthchecks y scripts operativos.
 - Crear roles y schemas.
 
@@ -58,3 +55,5 @@
 
 **Gate:** ejecucion limpia desde Docker y evidencia guardada.
 
+Redis y Superset salen de la Fase 1: se entregan en el Bloque D junto con Gold, dashboards,
+RLS y la configuracion de serving analitico. No forman parte de Bronze/Silver.
