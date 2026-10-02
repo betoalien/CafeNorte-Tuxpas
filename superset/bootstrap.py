@@ -204,8 +204,8 @@ def main():
             chart(
                 "P1 · Rotación top 10",
                 tables["mart_inventory_turnover_top10"],
-                "echarts_bar",
-                '{"x_axis": "product_id", "metrics": '
+                "dist_bar",
+                '{"groupby": ["product_id"], "metrics": '
                 '[{"expressionType": "SIMPLE", "column": '
                 '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
                 '"label": "SUM(inventory_turnover_ratio)"}], '
