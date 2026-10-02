@@ -24,7 +24,7 @@ Lightsail por EC2 con rol IAM.
 
 ## Costo mensual
 
-Supuestos: 80k filas POS/mes, inventario diario de 40 tiendas, 1k pedidos Shopify/mes,
+Supuestos de dimensionamiento conservadores: hasta 80k filas POS/mes (hoy ~4,800/mes, 16× de margen), inventario diario de 40 tiendas, 1k pedidos Shopify/mes (hoy ~830),
 una corrida diaria y 0.10 TB escaneados. Sin IVA, soporte ni horas operativas.
 
 | Concepto | Esperado |

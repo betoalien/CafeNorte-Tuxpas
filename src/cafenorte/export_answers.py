@@ -29,6 +29,14 @@ QUERIES = {
     ),
 }
 
+PERIODS = {
+    "p1_inventory_turnover_top10": "2025-10-01—2026-03-31",
+    "p2_stockouts_over_3_days": "2026-01-01—2026-03-31",
+    "p3_monthly_channel_growth": "2025-04-01—2026-03-31",
+    "p3_monthly_channel_type_growth": "2025-04-01—2026-03-31",
+    "p4_negative_margin_products": "2025-04-01—2026-03-31",
+}
+
 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
@@ -43,7 +51,7 @@ def main() -> None:
         conn.cursor() as cur,
     ):
         summary: list[str] = [
-            "# Respuestas Bloque C",
+            "# Respuestas certificadas",
             "",
             "Generado desde marts dbt en analytics.",
             "",
@@ -64,7 +72,17 @@ def main() -> None:
                 writer.writerow(headers)
                 writer.writerows(rows)
             summary.extend(
-                [f"## {name}", "", f"Filas exportadas: {len(rows)}", "", "```sql", sql, "```", ""]
+                [
+                    f"## {name}",
+                    "",
+                    f"Periodo: {PERIODS[name]}",
+                    f"Filas exportadas: {len(rows)}",
+                    "",
+                    "```sql",
+                    sql,
+                    "```",
+                    "",
+                ]
             )
         (OUT / "README.md").write_text("\n".join(summary), encoding="utf-8")
 

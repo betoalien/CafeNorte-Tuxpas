@@ -30,3 +30,8 @@ def test_documentation_matches_current_decisions() -> None:
         encoding="utf-8"
     )
     assert "gitleaks no estaba instalado" not in final_validation
+
+    assert "Bloque" not in (
+        ROOT / "artifacts/evidence/answers/README.md"
+    ).read_text(encoding="utf-8")
+    assert "conservador" in proposal.lower()

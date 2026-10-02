@@ -12,7 +12,7 @@ volúmenes ni entorno virtual previo. `uv sync` instaló desde `uv.lock` incluye
 tiempo total medido     79 s
 anchor_date              2026-03-31
 dbt                      PASS=67 WARN=0 ERROR=0 SKIP=0
-pytest                   27 passed
+pytest                   28 passed
 Superset RLS/API         PASS; dashboard charts=6
 ```
 
