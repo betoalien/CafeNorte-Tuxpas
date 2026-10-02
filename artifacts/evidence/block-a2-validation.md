@@ -180,6 +180,22 @@ Hashes antes y después de `reset.sh --yes`:
 
 Durante la validación A-2 el árbol estaba deliberadamente sucio por las correcciones del bloque y
 por el README redactado por Claude que debía incluirse en el commit único. El control específico
-del punto 6 fue el hash estable de `profiling.md` antes y después de `validate.sh`. Tras crear el
-commit único se debe ejecutar de nuevo `./scripts/validate.sh` y confirmar `git status --short`
-vacío.
+del punto 6 fue el hash estable de `profiling.md` antes y después de `validate.sh`.
+
+## Validación posterior al commit
+
+Commit principal: `8bb9161` (`Block A-2: null sku_erp reconciliation, bash-only port, macOS validation`).
+
+Comando ejecutado después del commit:
+
+```bash
+./scripts/validate.sh && git status --short
+```
+
+Salida relevante:
+
+```text
+All checks passed!
+```
+
+`git status --short` no imprimió ninguna línea; el árbol quedó limpio.
