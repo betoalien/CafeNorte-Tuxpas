@@ -283,8 +283,10 @@ def main():
         except Exception as exc:
             db.session.rollback()
             raise RuntimeError(
-                "La metadata de Superset fue creada con otra SECRET_KEY; "
-                "ejecuta `uv run cafenorte reset --yes`"
+                "No se pudo guardar la metadata de Superset "
+                f"({exc.__class__.__name__}: {exc}); una SECRET_KEY distinta "
+                "es una causa posible. Si aplica, ejecuta "
+                "`uv run cafenorte reset --yes`"
             ) from exc
 
 

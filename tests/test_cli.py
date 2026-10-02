@@ -74,6 +74,19 @@ def test_role_sync_does_not_print_passwords(capsys, monkeypatch) -> None:
     assert kwargs["input"]
 
 
+def test_ingest_failure_diagnostics_distinguish_authentication(capsys) -> None:
+    cli.report_ingest_failure("line 1\npassword authentication failed for user pipeline")
+    auth = capsys.readouterr().err
+    assert "password authentication failed" in auth
+    assert "reset --yes" in auth
+
+    cli.report_ingest_failure("line 1\nconnection refused")
+    other = capsys.readouterr().err
+    assert "connection refused" in other
+    assert "ERROR: la ingesta falló; revisa el detalle arriba" in other
+    assert "reset --yes" not in other
+
+
 def test_ci_disables_browser(monkeypatch) -> None:
     monkeypatch.setenv("CI", "true")
     assert os.environ["CI"] == "true"

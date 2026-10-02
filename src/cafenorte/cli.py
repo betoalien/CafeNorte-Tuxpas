@@ -151,6 +151,22 @@ def run(
     )
 
 
+def report_ingest_failure(stderr: str) -> None:
+    """Show bounded ingestion diagnostics without guessing at unrelated failures."""
+    detail = stderr.splitlines()[-20:]
+    if detail:
+        print("Detalle de la ingesta:", file=sys.stderr)
+        print("\n".join(detail), file=sys.stderr)
+    if "password authentication failed" in stderr:
+        print(
+            "ERROR: la ingesta falló por credenciales antiguas; ejecuta "
+            "`uv run cafenorte reset --yes` y vuelve a iniciar.",
+            file=sys.stderr,
+        )
+    else:
+        print("ERROR: la ingesta falló; revisa el detalle arriba", file=sys.stderr)
+
+
 def compose(
     env: dict[str, str], *args: str, check: bool = True, capture: bool = False
 ) -> subprocess.CompletedProcess[str]:
@@ -350,12 +366,7 @@ def start(args: argparse.Namespace) -> int:
         capture=True,
     )
     if result.returncode:
-        print(
-            "ERROR: no se pudo conectar con PostgreSQL durante la ingesta. "
-            "La causa probable es un volumen compartido con credenciales antiguas; "
-            "ejecuta `uv run cafenorte reset --yes` y vuelve a iniciar.",
-            file=sys.stderr,
-        )
+        report_ingest_failure(result.stderr or "")
         return 1
     print(result.stdout, end="")
     try:
