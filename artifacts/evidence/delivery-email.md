@@ -5,3 +5,4 @@ Dejé fuera el despliegue AWS real, el orquestador y la alta disponibilidad porq
 El recorrido está en README.md, la propuesta en docs/PROPUESTA_AWS.md y la bitácora en AI_LOG.md.
 Repositorio: https://github.com/betoalien/CafeNorte-Tuxpas.git
 Respuestas clave: 015-D −158,216 MXN en 12 meses; e-commerce −8.5% en el año.
+Propuesta PDF: artifacts/evidence/PROPUESTA_AWS.pdf

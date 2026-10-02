@@ -168,6 +168,7 @@ Catalog, Athena y dbt para catálogo, consulta y semántica; Apache Superset en 
 CloudWatch/CloudTrail para operación y auditoría. Todo va en `us-east-1`: cuesta USD
 34.49/mes, deja USD 165.51 bajo el límite y descarta QuickSight por su costo por lector.
 La arquitectura completa está en [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md).
+La versión PDF para revisión está en [`artifacts/evidence/PROPUESTA_AWS.pdf`](artifacts/evidence/PROPUESTA_AWS.pdf).
 
 ## Limitaciones y siguientes pasos
 

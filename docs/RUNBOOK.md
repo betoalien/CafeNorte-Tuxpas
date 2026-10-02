@@ -115,3 +115,14 @@ harness sin producir cambios por tiempo en Git.
 ## Recuperacion
 
 El pipeline debe reconstruir Silver y Gold desde Bronze. PostgreSQL no es la unica copia de los datos originales. Toda operacion de recuperacion debe registrar un nuevo `run_id`.
+
+## PDF de la propuesta AWS
+
+Con Chrome o Chromium instalado, genera la versión revisable y cuenta sus páginas con:
+
+```bash
+uv run --with markdown python scripts/build_proposal_pdf.py
+uv run --with pypdf python -c "from pypdf import PdfReader; print(len(PdfReader('artifacts/evidence/PROPUESTA_AWS.pdf').pages))"
+```
+
+Si no existe Chrome/Chromium, el script avisa y no falla la validación principal.
