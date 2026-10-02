@@ -205,7 +205,10 @@ def main():
                 "P1 · Rotación top 10",
                 tables["mart_inventory_turnover_top10"],
                 "echarts_bar",
-                '{"x_axis": "product_id", "metrics": ["inventory_turnover_ratio"], '
+                '{"x_axis": "product_id", "metrics": '
+                '[{"expressionType": "SIMPLE", "column": '
+                '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
+                '"label": "SUM(inventory_turnover_ratio)"}], '
                 '"row_limit": 10, "order_desc": true}',
             ),
             chart(
@@ -219,14 +222,18 @@ def main():
                 tables["mart_monthly_channel_growth"],
                 "echarts_timeseries",
                 '{"granularity_sqla": "month_start", "time_grain_sqla": "P1M", '
-                '"groupby": ["channel"], "metrics": ["sales_mxn"]}',
+                '"groupby": ["channel"], "metrics": '
+                '[{"expressionType": "SIMPLE", "column": {"column_name": "sales_mxn"}, '
+                '"aggregate": "SUM", "label": "SUM(sales_mxn)"}]}',
             ),
             chart(
                 "P3 · Físico vs e-commerce",
                 tables["mart_monthly_channel_type_growth"],
                 "echarts_timeseries",
                 '{"granularity_sqla": "month_start", "time_grain_sqla": "P1M", '
-                '"groupby": ["channel_type"], "metrics": ["sales_mxn"]}',
+                '"groupby": ["channel_type"], "metrics": '
+                '[{"expressionType": "SIMPLE", "column": {"column_name": "sales_mxn"}, '
+                '"aggregate": "SUM", "label": "SUM(sales_mxn)"}]}',
             ),
             chart(
                 "P4 · Margen negativo",
