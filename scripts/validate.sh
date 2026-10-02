@@ -46,6 +46,7 @@ set -a
 # shellcheck disable=SC1090
 . "$env_file"
 set +a
+UV_CACHE_DIR=/tmp/cafenorte-uv-cache uv run python -m cafenorte.ingest --engine pardox --force
 uv run pytest
 anchor_date="$(docker compose --env-file "$env_file" exec -T postgres sh -c \
   'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -At -c "SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), (SELECT max(fecha::date) FROM silver.ecommerce_orders), (SELECT max(fecha) FROM silver.inventory_snapshots));"' \

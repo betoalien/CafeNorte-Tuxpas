@@ -22,13 +22,14 @@ ALTER ROLE superset_ro PASSWORD :'superset_ro_password';
 ALTER ROLE superset_meta PASSWORD :'superset_meta_password';
 
 CREATE SCHEMA IF NOT EXISTS silver AUTHORIZATION pipeline;
+CREATE SCHEMA IF NOT EXISTS silver_pardox AUTHORIZATION pipeline;
 CREATE SCHEMA IF NOT EXISTS audit AUTHORIZATION pipeline;
 CREATE SCHEMA IF NOT EXISTS staging AUTHORIZATION dbt;
 CREATE SCHEMA IF NOT EXISTS intermediate AUTHORIZATION dbt;
 CREATE SCHEMA IF NOT EXISTS analytics AUTHORIZATION dbt;
 
 GRANT CONNECT ON DATABASE :"app_database" TO pipeline, dbt, superset_ro;
-GRANT USAGE, CREATE ON SCHEMA silver, audit TO pipeline;
+GRANT USAGE, CREATE ON SCHEMA silver, silver_pardox, audit TO pipeline;
 GRANT USAGE ON SCHEMA silver, audit TO dbt;
 GRANT USAGE, CREATE ON SCHEMA staging, intermediate, analytics TO dbt;
 GRANT USAGE ON SCHEMA analytics TO superset_ro;

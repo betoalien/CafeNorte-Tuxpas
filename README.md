@@ -5,6 +5,17 @@
 Bloques A, A-1, B, C y D1 implementados: perfilado, Bronze → Silver, dbt → Gold, las cuatro
 respuestas reproducibles y Superset local con Redis/RLS. PardoX permanece pendiente.
 
+## PardoX
+
+PardoX es un motor DataFrame con núcleo en Rust, publicado en [pardox.io](https://www.pardox.io/).
+En este reto es una alternativa verificada, nunca el camino crítico: demuestra paridad con Polars y
+registra tiempos sobre las mismas fuentes. La versión fijada es `0.3.4`; su API documentada permite
+leer CSV, mientras JSON anidado, Parquet y la preparación tipada de Silver usan fallback explícito a
+Polars. Ejecuta `uv run python -m cafenorte.ingest --engine pardox` y
+`uv run python -m cafenorte.benchmark` para generar evidencia.
+
+<!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
+
 ## Objetivo
 
 Crear una fuente analítica confiable para ventas e inventario de CaféNorte y responder:

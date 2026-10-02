@@ -28,6 +28,8 @@ from .contracts import (
     SnapshotRecord,
     StoreRecord,
 )
+from .engines import pardox_engine, polars_engine
+from .engines.common import validate_engine
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = Path(os.environ.get("CAFENORTE_DATA_DIR", str(ROOT / "datos")))
@@ -247,11 +249,18 @@ def load(
     source_paths: list[Path],
     hashes_before: dict[Path, str],
     table_modes: dict[str, str],
+    target_schema: str = "silver",
 ) -> None:
     with connect() as conn, conn.cursor() as cur:
-        cur.execute(DDL)
+        cur.execute(
+            DDL if target_schema == "silver" else DDL.replace("silver.", f"{target_schema}.")
+        )
         add_row_hashes(data)
-        for name, (table, key_columns) in TABLES.items():
+        tables = {
+            name: (f"{target_schema}.{table.split('.', 1)[1]}", keys)
+            for name, (table, keys) in TABLES.items()
+        }
+        for name, (table, key_columns) in tables.items():
             mode = table_modes[name]
             if mode == "full":
                 cur.execute(f"DELETE FROM {table}")
@@ -266,28 +275,32 @@ def load(
                 data[name] = []
         insert_rows(
             cur,
-            "INSERT INTO silver.pos_sales VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            f"INSERT INTO {tables['sales'][0]} VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             data["sales"],
         )
-        insert_rows(cur, "INSERT INTO silver.stores VALUES (%s,%s,%s,%s,%s,%s,%s)", data["stores"])
         insert_rows(
-            cur, "INSERT INTO silver.products VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", data["products"]
-        )
-        insert_rows(
-            cur, "INSERT INTO silver.sku_mappings VALUES (%s,%s,%s,%s,%s,%s)", data["mappings"]
+            cur, f"INSERT INTO {tables['stores'][0]} VALUES (%s,%s,%s,%s,%s,%s,%s)", data["stores"]
         )
         insert_rows(
             cur,
-            "INSERT INTO silver.inventory_snapshots VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            f"INSERT INTO {tables['products'][0]} VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            data["products"],
+        )
+        insert_rows(
+            cur, f"INSERT INTO {tables['mappings'][0]} VALUES (%s,%s,%s,%s,%s,%s)", data["mappings"]
+        )
+        insert_rows(
+            cur,
+            f"INSERT INTO {tables['snapshots'][0]} VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             data["snapshots"],
         )
         insert_rows(
             cur,
-            "INSERT INTO silver.ecommerce_orders VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            f"INSERT INTO {tables['orders'][0]} VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             data["orders"],
         )
         insert_rows(
-            cur, "INSERT INTO silver.exchange_rates VALUES (%s,%s,%s,%s,%s,%s,%s)", data["rates"]
+            cur, f"INSERT INTO {tables['rates'][0]} VALUES (%s,%s,%s,%s,%s,%s,%s)", data["rates"]
         )
         hashes_after = {path: sha256(path) for path in source_paths}
         changed = [path for path in source_paths if hashes_before[path] != hashes_after[path]]
@@ -387,7 +400,11 @@ def snapshot_to_silver(
     )
 
 
-def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
+def _run(run_id: UUID, started: datetime, force: bool = False, engine: str = "polars") -> str:
+    validate_engine(engine)
+    engine_metadata = (
+        pardox_engine.prepare(DATA) if engine == "pardox" else polars_engine.prepare(DATA)
+    )
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     paths = [
         DATA / "sales.csv",
@@ -650,6 +667,9 @@ def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
                 )
             modes = {table_modes[name] for name in names} - {"skipped"}
             source_modes[source_names[path]] = "incremental" if modes == {"incremental"} else "full"
+    if engine == "pardox":
+        table_modes = {name: "full" for name in TABLES}
+        source_modes = {source_names[path]: "full" for path in paths}
     for manifest in manifests:
         manifest.load_mode = source_modes[manifest.source_file]
     load(
@@ -660,12 +680,23 @@ def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
         paths,
         hashes_before,
         table_modes,
+        target_schema="silver_pardox" if engine == "pardox" else "silver",
     )
     payload = {"run_id": str(run_id), "manifests": [m.model_dump(mode="json") for m in manifests]}
     (MANIFEST_DIR / f"{run_id}.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    result = {"run_id": str(run_id), "load_mode": source_modes, "manifests": payload["manifests"]}
+    result = {
+        "run_id": str(run_id),
+        "load_mode": source_modes,
+        "engine": engine,
+        "engine_fallback": engine_metadata.fallbacks,
+        "manifests": payload["manifests"],
+    }
+    log_dir = ROOT / "logs"
+    log_dir.mkdir(exist_ok=True)
+    with (log_dir / "engine_runs.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(result, ensure_ascii=False) + "\n")
     print(json.dumps(result, ensure_ascii=False))
     return json.dumps(source_modes, sort_keys=True)
 
@@ -675,11 +706,12 @@ def main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--force", action="store_true", help="force a full Silver load")
+    parser.add_argument("--engine", choices=("polars", "pardox"), default="polars")
     args = parser.parse_args()
     run_id = uuid4()
     started = now()
     try:
-        _run(run_id, started, force=args.force)
+        _run(run_id, started, force=args.force, engine=args.engine)
     except Exception as error:
         record_failed(run_id, started, error)
         raise

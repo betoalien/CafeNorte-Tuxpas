@@ -258,3 +258,14 @@ probarlo con el `run_id` de las filas.
 no inserta, `incremental` inserta solo claves nuevas y `full` reemplaza únicamente la tabla de la
 fuente cambiada. La prueba temporal cubre tres altas, modificación y baja, y restaura el estado con
 `--force`. `start.sh` y `validate.sh` calculan el `anchor_date` común desde Silver y lo pasan a dbt.
+
+### Prompt 18: Bloque D2, paridad PardoX
+
+**Decisión:** fijar PardoX `0.3.4` y usar únicamente la API publicada. `read_csv` se ejecuta para
+`sales.csv`; JSON anidado, Parquet y la conversión documentada a registros Silver no están
+disponibles en la API consultada, así que se registra `engine_fallback=polars` explícitamente.
+Polars sigue siendo el oráculo y la carga incremental no se modifica.
+
+**Limitación:** la ruta PardoX no se promociona a Silver ni se simula como equivalente mientras la
+API no documente esas operaciones. El benchmark reporta el tamaño pequeño del dataset y no
+generaliza sus tiempos.

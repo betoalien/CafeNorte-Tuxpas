@@ -40,6 +40,8 @@ dbt/.user.yml
 
 # Runtime evidence and logs
 artifacts/evidence/*
+logs/*.jsonl
+logs/benchmark_latest.md
 artifacts/manifests/*
 artifacts/reports/*
 !artifacts/evidence/.gitkeep
