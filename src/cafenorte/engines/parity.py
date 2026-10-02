@@ -3,25 +3,23 @@
 
 def check_parity(conn) -> list[str]:
     differences: list[str] = []
+    columns = (
+        "venta_id, fecha_hora_normalizada, tienda_id, sku, product_number, "
+        "cantidad, monto, moneda, tipo_comprobante"
+    )
     with conn.cursor() as cur:
-        cur.execute(
-            """SELECT COALESCE(p.venta_id, x.venta_id), p.row_hash, x.row_hash, p.monto, x.monto
-               FROM silver.pos_sales p FULL JOIN silver_pardox.pos_sales x USING (venta_id)
-               WHERE p.row_hash IS DISTINCT FROM x.row_hash
-                  OR p.monto IS DISTINCT FROM x.monto
-                  OR p.venta_id IS NULL OR x.venta_id IS NULL"""
-        )
-        differences.extend(str(row[0]) for row in cur.fetchall())
-        for sql in (
-            "SELECT count(*), sum(cantidad), sum(monto) FROM silver.pos_sales",
-            "SELECT count(*), sum(cantidad), sum(monto) FROM silver_pardox.pos_sales",
-        ):
-            cur.execute(sql)
-            if sql.startswith("SELECT count"):
-                if "reference" not in locals():
-                    reference = cur.fetchone()
-                elif cur.fetchone() != reference:
-                    differences.append("aggregate_totals")
+        for left, right in (("silver", "silver_pardox"), ("silver_pardox", "silver")):
+            cur.execute(
+                f"SELECT venta_id FROM (SELECT {columns} FROM {left}.pos_sales "
+                f"EXCEPT SELECT {columns} FROM {right}.pos_sales) d ORDER BY venta_id"
+            )
+            differences.extend(str(row[0]) for row in cur.fetchall())
+        totals = []
+        for schema in ("silver", "silver_pardox"):
+            cur.execute(f"SELECT count(*), sum(cantidad), sum(monto) FROM {schema}.pos_sales")
+            totals.append(cur.fetchone())
+        if totals[0] != totals[1]:
+            differences.append("aggregate_totals")
         for expression, label in (
             ("tienda_id, date_trunc('month', fecha_hora_normalizada)", "store_month"),
             ("tipo_comprobante", "tipo_comprobante"),
@@ -40,5 +38,5 @@ def check_parity(conn) -> list[str]:
                 values.append(sorted(cur.fetchall(), key=str))
             if values[0] != values[1]:
                 differences.append(label)
-    row_differences = [value for value in differences if value.startswith("V")]
-    return row_differences if row_differences else differences
+    row_differences = sorted({value for value in differences if value.startswith("V")})
+    return row_differences if row_differences else sorted(set(differences))

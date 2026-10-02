@@ -294,3 +294,35 @@ de tuplas Silver con `row_hash`; PardoX usa esa salida exclusivamente para `silv
 `check_parity()` se ejecuta antes y después de alterar/restaurar una fila. El benchmark queda limitado
 a `sales.csv`, usa PostgreSQL temporal, subprocess, memoria macOS en MB y compara `.prdx` contra
 Parquet/CSV serializado con guardas de 86,490 filas.
+
+### Prompt 21: Bloque D2-3, benchmark justo y carga nativa
+
+**Caso de error:** D2-2 llamaba `prepare()` y después el builder, leyendo y convirtiendo `sales.csv`
+dos veces; cerca del 90% del tiempo era Python común, Pydantic y `executemany`, y no se usaba el
+driver nativo de PostgreSQL de PardoX. La primera implementación de D2-3 también intentó crear la
+tabla ADBC en `public`, donde `pipeline` no tiene CREATE, y el stage inicial llegó a devolver 1,024
+filas porque `px.DataFrame(list[dict])` trunca ese constructor.
+
+**Corrección:** una sola lectura por subprocess, etapas separadas y carga nativa: PardoX usa
+`px.read_csv`, `px.execute_sql`, `df.to_sql` y `df.to_prdx`; Polars usa ADBC
+`DataFrame.write_database(..., engine="adbc")`; la línea base usa `psycopg.executemany`. Se verifican
+86,490 filas y agregados idénticos. La carga PardoX reveló una diferencia real de `product_number`
+para SKUs como `CN-00051`; se corrigió usando los últimos tres dígitos tras limpiar caracteres no
+numéricos y la paridad SQL quedó vacía.
+
+**Lección:** un benchmark debe medir el mismo trabajo y la llamada nativa real; permisos, cardinalidad
+de salida y transformaciones también son parte de la medición.
+
+### Prompt 22: Corrección posterior, carga PRDX nativa
+
+**Hallazgo:** la revisión de la documentación oficial de PardoX 0.3.4 mostró que faltaba medir
+`write_sql_prdx`, la ruta de streaming de un archivo `.prdx` a PostgreSQL. También confirmó que
+`to_sql` activa COPY automáticamente sobre 10,000 filas y que las escrituras requieren una tabla
+preexistente.
+
+**Corrección:** el benchmark conserva la comparación `df.to_sql` vs ADBC vs `psycopg.executemany` y
+añade `df.to_prdx` seguido de `px.write_sql_prdx` en una tabla aislada, verificando 86,490 filas.
+La documentación de `date_extract` exige una columna Date/Timestamp/Int64; `fecha_hora` de la fuente
+es Utf8 y el intento real devuelve `date_format ... expected Date/Timestamp/Int64`, por lo que no se
+simula una transformación PardoX inexistente: la fecha/mes debe normalizarse en la etapa contractual
+SQL compartida y queda documentada como limitación de esta versión.

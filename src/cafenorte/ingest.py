@@ -30,7 +30,6 @@ from .contracts import (
 )
 from .engines import pardox_engine, polars_engine
 from .engines.common import validate_engine
-from .engines.pos_sales import build_pos_sales_pardox
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = Path(os.environ.get("CAFENORTE_DATA_DIR", str(ROOT / "datos")))
@@ -640,9 +639,16 @@ def _run(run_id: UUID, started: datetime, force: bool = False, engine: str = "po
         ],
     }
     if engine == "pardox":
-        data["sales"] = build_pos_sales_pardox(paths[0], run_id, ingested_at)
-        for name in ("stores", "products", "mappings", "snapshots", "orders", "rates"):
-            data[name] = []
+        written, accepted = pardox_engine.native_load_pos_sales(paths[0], run_id, ingested_at)
+        result = {
+            "run_id": str(run_id),
+            "engine": engine,
+            "native_to_sql_rows": written,
+            "accepted_sales": accepted,
+            "engine_fallback": {"inventory.json": "polars: nested JSON fallback by SPEC-003"},
+        }
+        print(json.dumps(result, ensure_ascii=False))
+        return "pardox"
     changed_paths = (
         paths
         if force

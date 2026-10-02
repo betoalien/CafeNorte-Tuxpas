@@ -3,6 +3,39 @@ revision = 3
 requires-python = "==3.12.*"
 
 [[package]]
+name = "adbc-driver-manager"
+version = "1.12.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9c/f8/ed6475b49a7cf35ea888d5c95e7d4bc9dc6568f9d741f14c0573d622cc1e/adbc_driver_manager-1.12.0.tar.gz", hash = "sha256:45991f0c2de369d330c6a211ca2edbcce6389c5dc81cde70461bdeb6f8f7b268", size = 217579, upload-time = "2026-07-28T00:43:03.512Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/8c/cd3fe16df716719116a6c79e64a768fe994f6ded55d5a8f091bb4f42d6f0/adbc_driver_manager-1.12.0-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:fd02364c65b8b376c5627e3b77410f457fcbbf983e52e8d15ca099da3a7ae314", size = 599054, upload-time = "2026-07-28T00:42:04.072Z" },
+    { url = "https://files.pythonhosted.org/packages/49/4a/2f060ff6bd61420ea1613670e1f85a22a8714934c235186dc3803de8ddac/adbc_driver_manager-1.12.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:d8dcf62621090e8d9c8216e08dfc4043f16331872522186af61a5de9478e9c63", size = 609964, upload-time = "2026-07-28T00:42:05.82Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/f1/0746db149828ae91e4a6cf49f8d0e49210eec20c03ad80044454139c8240/adbc_driver_manager-1.12.0-cp312-cp312-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:efa5dbbf101962d212b176f25e6fc509dacf07afd4cf70b5027d81ec6871bdec", size = 4685726, upload-time = "2026-07-28T00:42:08.1Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/c3/f8e9c5157b19e986df719259eb3502dad1268df9f7a1034f65ca220ab2ea/adbc_driver_manager-1.12.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8b340679a005a8adf6b0b58754dbc638dff00db7b2559c140406a1d92678b48c", size = 4768774, upload-time = "2026-07-28T00:42:10.359Z" },
+    { url = "https://files.pythonhosted.org/packages/92/51/f8e625af691e6b4c54945790854524356a02a0a69063e888f7cfee1b2e50/adbc_driver_manager-1.12.0-cp312-cp312-win_amd64.whl", hash = "sha256:47f428a922d224fd486b661deeaf9520e5faec558b3d144832bed09a080cac88", size = 760087, upload-time = "2026-07-28T00:42:11.871Z" },
+]
+
+[[package]]
+name = "adbc-driver-postgresql"
+version = "1.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "adbc-driver-manager" },
+    { name = "importlib-resources" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/85/90/b70479b8808cc9fc9df3e26262a3197a38418477d6c729358db8f2a424ff/adbc_driver_postgresql-1.7.0.tar.gz", hash = "sha256:2c624446e855f12d3236211c33ffbd9d04b113e8879dd9fb64e8df52af760d36", size = 20366, upload-time = "2025-07-07T06:23:10.086Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/95/57ba30e2a1083427b52886d0df88e4f2475430a46526500fa797469991c6/adbc_driver_postgresql-1.7.0-py3-none-macosx_10_15_x86_64.whl", hash = "sha256:5ed0925aa60db1af83a3ac3b6dbf28301f7e958e32bc2fac38c88e87f037d216", size = 2690330, upload-time = "2025-07-07T06:22:40.016Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/94/e0885a8d81293a03bb827598eec2b6bd287910a5c80f6fdc97d60b8e33ee/adbc_driver_postgresql-1.7.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:f90f3b09ff3515c7a7717cb1ff277d7b475c176d11ae7eb81b9a29a69a3822ae", size = 3003864, upload-time = "2025-07-07T06:22:41.532Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/38/76ae713aa626edef081c69c29b6be209e1d509e7979283a371013ba25f45/adbc_driver_postgresql-1.7.0-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:6672a693b55c96a31927565bd77f055a8e7d85e60afd64e9c798a9091ebf8f84", size = 3195576, upload-time = "2025-07-07T06:22:43.084Z" },
+    { url = "https://files.pythonhosted.org/packages/58/15/86561628738161017273d9a689e9405e4ea9a9d41a70fd2460dbc5d646ae/adbc_driver_postgresql-1.7.0-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:da257df9e168e05f3a13b9da974d58b5580c70dc881f9f100c80f789e0cb336b", size = 2852984, upload-time = "2025-07-07T06:22:44.49Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/56/30541cff717853151bb53c9b27602251795c22043c8b5c4615139b3228cb/adbc_driver_postgresql-1.7.0-py3-none-win_amd64.whl", hash = "sha256:db46e26dc0462d20a2508d5925dd9d22bfb248eb9982ed0be4ba45b90d7ebef6", size = 2860197, upload-time = "2025-07-07T06:22:45.936Z" },
+]
+
+[[package]]
 name = "agate"
 version = "1.9.1"
 source = { registry = "https://pypi.org/simple" }
@@ -52,6 +85,7 @@ name = "cafenorte-data-platform"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "adbc-driver-postgresql" },
     { name = "dbt-core" },
     { name = "dbt-postgres" },
     { name = "pardox" },
@@ -68,6 +102,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "adbc-driver-postgresql", specifier = "==1.7.0" },
     { name = "dbt-core", specifier = "==1.9.8" },
     { name = "dbt-postgres", specifier = "==1.9.0" },
     { name = "pardox", specifier = "==0.3.4" },
@@ -333,6 +368,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e7/72/c600ae4f68c28fc19f9c31b9403053e5dbb8cace2e6842c7b7c3e4d42fe9/importlib_metadata-8.9.0.tar.gz", hash = "sha256:58850626cef4bd2df100378b0f2aea9724a7b92f10770d547725b047078f99ee", size = 56140, upload-time = "2026-03-20T16:56:26.362Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/f9/97f2ca8bb3ec6e4b1d64f983ebe98b9a192faddff67fac3d6303a537e670/importlib_metadata-8.9.0-py3-none-any.whl", hash = "sha256:e0f761b6ea91ced3b0844c14c9d955224d538105921f8e6754c00f6ca79fba7f", size = 27220, upload-time = "2026-03-20T16:56:25.07Z" },
+]
+
+[[package]]
+name = "importlib-resources"
+version = "7.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/06/b56dfa750b44e86157093bc8fca0ab81dccbf5260510de4eaf1cb69b5b99/importlib_resources-7.1.0.tar.gz", hash = "sha256:0722d4c6212489c530f2a145a34c0a7a3b4721bc96a15fada5930e2a0b760708", size = 44985, upload-time = "2026-04-12T16:36:09.232Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8a/db/55a262f3606bebcae07cc14095338471ad7c0bbcaa37707e6f0ee49725b7/importlib_resources-7.1.0-py3-none-any.whl", hash = "sha256:1bd7b48b4088eddb2cd16382150bb515af0bd2c70128194392725f82ad2c96a1", size = 37232, upload-time = "2026-04-12T16:36:08.219Z" },
 ]
 
 [[package]]

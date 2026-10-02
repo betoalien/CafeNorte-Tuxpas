@@ -3,19 +3,21 @@
 ## Estado
 
 Bloques A, A-1, B, C y D1 implementados: perfilado, Bronze → Silver, dbt → Gold, las cuatro
-respuestas reproducibles y Superset local con Redis/RLS. PardoX permanece pendiente.
+respuestas reproducibles y Superset local con Redis/RLS. D2 implementa una ruta PardoX aislada para
+sales.csv, con carga nativa a PostgreSQL, paridad SQL y benchmark reproducible.
 
 ## PardoX
 
 PardoX es un motor DataFrame con núcleo en Rust, publicado en [pardox.io](https://www.pardox.io/).
 En este reto es una alternativa verificada, nunca el camino crítico: demuestra paridad con Polars y
 registra tiempos sobre las mismas fuentes. La versión fijada es `0.3.4`; su API documentada permite
-leer CSV y Parquet, hacer cast, validar contratos, convertir registros y escribir `.prdx`, mientras
+leer CSV, hacer cast, validar contratos y escribir `.prdx`, mientras
 el JSON anidado de inventario usa el único fallback explícito a Polars. Ejecuta
 `uv run python -m cafenorte.ingest --engine pardox` y
 `uv run python -m cafenorte.benchmark` para generar evidencia.
 Por alcance de SPEC-003, solo `sales.csv` recorre PardoX de punta a punta; inventario, Shopify y
-tipos de cambio permanecen en Polars.
+tipos de cambio permanecen en Polars por el alcance original de SPEC-003, no por una limitación
+inventada.
 
 <!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
 
