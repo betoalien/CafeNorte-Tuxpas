@@ -343,3 +343,14 @@ unidades y monto redondeado a dos decimales.
 pero su distribución tienda x mes produce 721 grupos frente a 720 y la guarda falla deliberadamente.
 No se relaja la prueba: queda como incompatibilidad reproducible de la ruta `write_sql_prdx` a esa
 escala en PardoX 0.3.4.
+
+### Prompt 24: Core local de PardoX y Parquet
+
+**Hallazgo:** el core local contiene `pardox_export_to_parquet` y `pardox_write_parquet`, pero el
+wheel instalado `pardox==0.3.4` no exporta el símbolo Python. La llamada documentada
+`frame.to_parquet(path)` falla en ejecución con `NotImplementedError: pardox_to_parquet not found in Core.`
+
+**Decisión:** no se simula Parquet PardoX con Polars ni se cambia el benchmark para atribuirlo al
+motor. Se conserva `.prdx` para la ruta instalada y se registra esta diferencia entre el código fuente
+del core y el binario distribuido. Para medir Parquet nativo habrá que reconstruir/reinstalar el binding
+con el símbolo exportado y repetir la evidencia.
