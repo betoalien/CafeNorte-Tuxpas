@@ -5,7 +5,9 @@
 - **P1:** los tres primeros son `057-C` (1.362), `012-B` (1.226) y `041-D` (1.201) en rotación de red.
 - **P2:** las tiendas con rachas certificadas son `T015`, `T023` y `T038`.
 - **P3:** muestra la tendencia mensual de `ONLINE` frente a cada tienda POS, en MXN.
-- **P4:** `015-D` concentra el margen negativo, con `-230,810 MXN` en el histórico POS completo.
+- **P4:** tres productos tienen margen negativo en las 40 tiendas: `015-D` (−158,216 MXN en los 12 meses certificados; −230,810 con todo el histórico POS), `002-B` (−47,596) y `001-A` (−12,664). ONLINE no tiene margen negativo.
+
+**Nota de verificación:** la suma actual de `artifacts/evidence/answers/p4_negative_margin_products.csv` es `015-D` −230,810.49 MXN, `002-B` −69,579.21 MXN y `001-A` −18,346.40 MXN; no coincide con las cifras certificadas solicitadas y no se ajustó la evidencia.
 
 Las respuestas completas y sus periodos están en [`artifacts/evidence/answers/`](artifacts/evidence/answers/).
 
@@ -70,9 +72,38 @@ Resultados: a ×1 PardoX `to_sql` totaliza 0.173562 s frente a 0.441900 s de Pol
 1.964213 s frente a 2.664857 s. `write_sql_prdx` queda excluido a ×10 por fallo de paridad;
 la [reproducción](artifacts/evidence/pardox-0.3.4-prdx-repro/README.md) documenta el caso.
 
-- Motor propio, no un wrapper.
+### ¿Por qué existe PardoX?
 
-<!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
+PardoX nació de una brecha concreta: **pandas se queda sin memoria** con volúmenes grandes y
+**Polars**, aunque robusto, vive dentro del ecosistema de dependencias de Python. Spark resuelve
+la escala, pero solo habla Java/Scala y Python, y exige una JVM o un clúster.
+
+- **Cero dependencias de lenguaje.** Toda la lógica vive en un núcleo Rust; Python, Node.js y PHP
+  son bindings delgados. Leer CSV/Parquet, validar contratos, transformar y escribir a
+  PostgreSQL no requiere psycopg2, SQLAlchemy ni pyarrow.
+- **Universalidad.** Miles de tiendas en línea y sitios web corren en PHP (Laravel, Symfony) o
+  Node.js y necesitan llevar sus datos a un dataset sin un clúster JVM. El paquete incluye
+  binarios para macOS (ARM/Intel), Linux x86-64, Windows, Node (N-API) y WASM.
+- **Hasta el mainframe.** En una prueba propia del autor, un programa COBOL llamó al núcleo de
+  PardoX por FFI (DLL/.so) y convirtió un archivo `.dat` de mainframe con 50 millones de registros
+  a `.prdx` en ~90 segundos, sin capas de traducción intermedias.
+- **PostgreSQL sin intermediarios.** El protocolo binario de PostgreSQL está implementado en Rust:
+  los datos van de la base a la memoria del motor (y de regreso, con `to_sql`) sin convertirse en
+  objetos Python.
+- **Motor propio, no un wrapper.** El núcleo no depende de Apache Arrow: usa estructuras propias en
+  Rust y paralelismo con Rayon, con una heurística que decide qué porcentaje de CPU dedicar a cada
+  lectura y escritura según la carga.
+- **Formato `.prdx`.** Bloques comprimidos con Zstd pensados para escribir y recargar rápido
+  (no para el menor tamaño: en este reto el parquet de Polars pesa menos).
+
+**Qué demuestra en este reto:** paridad fila por fila con Polars sobre `sales.csv`, verificada en
+PostgreSQL, y la carga a PostgreSQL más rápida de las tres rutas medidas. Polars gana en cómputo en
+memoria a ×10. Polars sigue siendo el motor de referencia; PardoX es una alternativa verificada,
+nunca el camino crítico. La guarda de paridad encontró un bug real en la ruta `.prdx` de la
+versión 0.3.4 (offsets UTF-8 sin rebase entre bloques), documentado en la reproducción.
+
+**Fuera de este reto:** en una prueba propia del autor (640 millones de filas en 320 CSV, laptop
+Ryzen 5 con 16 GB), PardoX tardó 182 s contra 204 s de Polars, con 1.13 GB de RAM.
 
 ## Uso de IA y limitaciones
 
