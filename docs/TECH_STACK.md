@@ -207,7 +207,7 @@ Un registro de `sales.csv` sigue este recorrido:
 
 ```text
 datos/sales.csv
-  -> SaleRecord (contracts.py, contrato Pydantic)
+  -> SalesRecord (contracts.py, contrato Pydantic)
   -> silver.pos_sales (ingest.py, row_hash/run_id)
   -> dbt/models/staging/stg_pos_sales.sql
   -> dbt/models/intermediate/int_product_identity.sql

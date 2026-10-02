@@ -411,3 +411,17 @@ La lógica de generación de `.env`, puertos, Docker, healthchecks, reporte y cr
 `src/cafenorte/cli.py`. Windows usa `icacls` para el ACL local de `.env`; macOS/Linux usan `600`.
 La matriz de Windows de CI prueba el CLI sin Docker porque GitHub Actions no ejecuta allí el flujo
 de contenedores Linux.
+
+### D3-6-1: restauración de paridad funcional
+
+**Caso de error:** el refactor de la CLI se incluyó dentro del commit documental `bab01e8` sin
+bloque ni evidencia propios. `validate` había perdido `docker compose config`, schemas/roles,
+PardoX `--force`, dbt, pytest completo, RLS, Ruff y export; `status` imprimía conteos fijos en vez
+de consultar PostgreSQL. La revisión comparó la versión `8add93f` paso a paso y añadió una prueba
+de secuencia que identifica el paso ausente.
+
+**Corrección y lección:** la CLI volvió a ejecutar el arnés completo en el orden del contrato,
+incluyendo la regla de plataforma para PardoX. La primera corrida real también descubrió que
+serializar `anchor_date` como JSON sin comillas rompía dbt; se alineó con el quoting del Bash
+histórico. La lección es que una migración de orquestación debe probar comportamiento y orden,
+no solo que exista el nuevo entry point.

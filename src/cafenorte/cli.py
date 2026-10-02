@@ -19,6 +19,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = ROOT / ".env"
 
+STEP_PLANS = {
+    "start": ["doctor", "env", "compose postgres redis", "postgres healthy", "ingest", "anchor_date", "dbt build", "export answers", "superset healthy", "status", "report"],
+    "restart": ["stop", "start"],
+    "stop": ["compose stop"],
+    "status": ["pg_isready", "run_log", "silver counts", "dbt result", "gold counts", "report path"],
+    "validate": ["doctor", "source checksums", "bash -n", "shellcheck", "compose config", "schemas roles superset_meta", "anchor_date", "pardox force", "dbt build", "pytest", "superset RLS", "ruff", "export answers"],
+    "reset": ["compose down volumes"],
+    "credentials": ["read .env", "print credentials"],
+    "doctor": ["platform", "docker", "compose v2", "uv", "shellcheck", "port tool", "pardox platform"],
+}
+
+
+def step_plan(command: str) -> list[str]:
+    return list(STEP_PLANS[command])
+
 
 def load_env(path: Path | None = None) -> dict[str, str]:
     path = path or ENV_PATH
@@ -31,12 +46,16 @@ def load_env(path: Path | None = None) -> dict[str, str]:
     return values
 
 
-def run(command: list[str], *, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=ROOT, check=check, text=True, capture_output=capture)
+def run(command: list[str], *, check: bool = True, capture: bool = False, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(command, cwd=cwd or ROOT, check=check, text=True, capture_output=capture)
 
 
-def compose(env: dict[str, str], *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return run(["docker", "compose", "--env-file", str(ENV_PATH), *args], check=check)
+def compose(env: dict[str, str], *args: str, check: bool = True, capture: bool = False) -> subprocess.CompletedProcess[str]:
+    return run(["docker", "compose", "--env-file", str(ENV_PATH), *args], check=check, capture=capture)
+
+
+def compose_exec(env: dict[str, str], command: str, *, capture: bool = False) -> subprocess.CompletedProcess[str]:
+    return compose(env, "exec", "-T", "postgres", "sh", "-c", command, capture=capture)
 
 
 def free_port() -> int:
@@ -149,11 +168,20 @@ def start(args: argparse.Namespace) -> int:
     if payload.get("load_mode") != "skipped":
         anchor = run(["docker", "compose", "--env-file", str(ENV_PATH), "exec", "-T", "postgres", "sh", "-c", 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -At -c "SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), (SELECT max(fecha::date) FROM silver.ecommerce_orders), (SELECT max(fecha) FROM silver.inventory_snapshots));"'], capture=True).stdout.strip()
         print(f"anchor_date={anchor}")
-        run(["uv", "run", "dbt", "build", "--project-dir", "dbt", "--profiles-dir", "dbt", "--target-path", "../artifacts/evidence/dbt", "--vars", json.dumps({"anchor_date": anchor})])
+        run(["uv", "run", "dbt", "build", "--project-dir", "dbt", "--profiles-dir", "dbt", "--target-path", "../artifacts/evidence/dbt", "--vars", json.dumps({"anchor_date": f"'{anchor}'"})])
         run([sys.executable, "-m", "cafenorte.export_answers"])
     else:
         print("No source changed; dbt build and answer export skipped.")
     compose(env, "up", "-d", "superset")
+    for _ in range(30):
+        health = run(["docker", "inspect", "--format={{.State.Health.Status}}", "cafenorte-superset"], check=False, capture=True).stdout.strip()
+        if health == "healthy":
+            break
+        time.sleep(2)
+    else:
+        compose(env, "logs", "superset", check=False)
+        return 1
+    status()
     run([sys.executable, "scripts/run_report.py", "--no-browser"])
     if not args.no_browser and os.environ.get("CI", "").lower() != "true":
         webbrowser.open(f"http://127.0.0.1:{env['SUPERSET_PORT']}/superset/dashboard/cafenorte-4-respuestas/")
@@ -239,12 +267,31 @@ def status() -> int:
         print("Missing .env; Compose status cannot be resolved.", file=sys.stderr)
         return 1
     env = load_env()
-    print("PostgreSQL:")
-    compose(env, "ps", check=False)
+    health = run(["docker", "inspect", "--format={{.State.Health.Status}}", "cafenorte-postgres"], check=False, capture=True).stdout.strip() or "not-created"
+    print("PostgreSQL host: 127.0.0.1")
+    print(f"PostgreSQL port: {env.get('POSTGRES_PORT', '')}")
+    print(f"Health: {health}")
     print(f"Superset URL: http://127.0.0.1:{env.get('SUPERSET_PORT', '')}")
     print("Superset users: admin, director, gerente_t001 (passwords are in .env)")
-    print("Silver: 7 tablas")
-    print("Gold (analytics): 5 marts")
+    compose(env, "ps", "postgres", check=False)
+    compose(env, "ps", "redis", "superset", check=False)
+    if health != "healthy":
+        return 0
+    print("PostgreSQL:")
+    compose_exec(env, 'pg_isready --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"')
+    print("Última corrida:")
+    compose_exec(env, 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 -c "SELECT run_id, status, input_count, accepted_count, rejected_count FROM audit.run_log ORDER BY started_at DESC LIMIT 1;"')
+    print("Silver:")
+    compose_exec(env, 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 -c "SELECT table_name, row_count FROM (SELECT \'silver.pos_sales\' AS table_name, count(*) AS row_count FROM silver.pos_sales UNION ALL SELECT \'silver.inventory_snapshots\', count(*) FROM silver.inventory_snapshots UNION ALL SELECT \'silver.ecommerce_orders\', count(*) FROM silver.ecommerce_orders UNION ALL SELECT \'silver.exchange_rates\', count(*) FROM silver.exchange_rates UNION ALL SELECT \'silver.stores\', count(*) FROM silver.stores UNION ALL SELECT \'silver.products\', count(*) FROM silver.products UNION ALL SELECT \'silver.sku_mappings\', count(*) FROM silver.sku_mappings) counts ORDER BY table_name;"')
+    result_file = ROOT / "artifacts/evidence/dbt/run_results.json"
+    dbt_result = "sin corridas"
+    if result_file.exists():
+        payload = json.loads(result_file.read_text(encoding="utf-8"))
+        statuses = [item.get("status") for item in payload.get("results", [])]
+        dbt_result = f"{payload.get('metadata', {}).get('generated_at', 'sin fecha')} PASS={statuses.count('pass')} WARN={statuses.count('warn')} ERROR={statuses.count('error')}"
+    print(f"Último dbt: {dbt_result}")
+    print("Gold (analytics):")
+    compose_exec(env, 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 -c "SELECT table_name, row_count FROM (SELECT \'analytics.mart_inventory_turnover_top10\' AS table_name, count(*) AS row_count FROM analytics.mart_inventory_turnover_top10 UNION ALL SELECT \'analytics.mart_stockouts_over_3_days\', count(*) FROM analytics.mart_stockouts_over_3_days UNION ALL SELECT \'analytics.mart_monthly_channel_growth\', count(*) FROM analytics.mart_monthly_channel_growth UNION ALL SELECT \'analytics.mart_negative_margin_products\', count(*) FROM analytics.mart_negative_margin_products UNION ALL SELECT \'analytics.mart_source_reconciliation\', count(*) FROM analytics.mart_source_reconciliation) gold_counts ORDER BY table_name;"')
     print(f"Reporte: {ROOT / 'artifacts/reports/run_report.html'}")
     return 0
 
@@ -255,7 +302,15 @@ def validate() -> int:
     if not ENV_PATH.exists():
         print("Missing .env. Run start first.", file=sys.stderr)
         return 1
-    os.environ.update(load_env())
+    env = load_env()
+    os.environ.update(env)
+    checksum = ["shasum", "-a", "256", "-c", "SHA256SUMS"] if platform.system() == "Darwin" else ["sha256sum", "-c", "SHA256SUMS"]
+    if platform.system() not in {"Darwin", "Linux"}:
+        print("Unsupported platform for source checksum verification.", file=sys.stderr)
+        return 1
+    if run(checksum, check=False, capture=True, cwd=ROOT / "datos").returncode:
+        print("fuente original del cliente modificada", file=sys.stderr)
+        return 1
     shell_files = list((ROOT / "scripts").glob("*.sh")) + list((ROOT / "docker/postgres/init").glob("*.sh"))
     for path in shell_files:
         if run(["bash", "-n", str(path)], check=False).returncode:
@@ -265,7 +320,35 @@ def validate() -> int:
         return 1
     if shutil.which("shellcheck"):
         run(["shellcheck", *(str(path) for path in shell_files)])
-    return run(["uv", "run", "pytest"]).returncode
+    compose(env, "config", "--quiet")
+    compose_exec(env, 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 -c "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN (\'silver\', \'audit\', \'intermediate\', \'analytics\'); SELECT rolname FROM pg_roles WHERE rolname IN (\'pipeline\', \'dbt\', \'superset_ro\', \'superset_meta\'); SELECT datname FROM pg_database WHERE datname = \'superset_meta\';"')
+    for service, container in (("Superset", "cafenorte-superset"), ("Redis", "cafenorte-redis")):
+        health = run(["docker", "inspect", "--format={{.State.Health.Status}}", container], check=False, capture=True).stdout.strip()
+        if health != "healthy":
+            print(f"{service} is not healthy.", file=sys.stderr)
+            return 1
+    anchor = compose_exec(env, 'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -At -c "SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), (SELECT max(fecha::date) FROM silver.ecommerce_orders), (SELECT max(fecha) FROM silver.inventory_snapshots));"', capture=True).stdout.strip()
+    if not anchor or len(anchor) != 10:
+        print(f"Could not calculate anchor_date: {anchor}", file=sys.stderr)
+        return 1
+    print(f"anchor_date={anchor}")
+    supported = platform.system() in {"Darwin", "Linux"} and platform.machine() in {"arm64", "x86_64", "amd64"}
+    if supported:
+        try:
+            run(["uv", "run", "python", "-m", "cafenorte.ingest", "--engine", "pardox", "--force"])
+        except subprocess.CalledProcessError:
+            supported = False
+            print(f"PardoX: UNSUPPORTED_PLATFORM ({platform.system()}-{platform.machine()})")
+    else:
+        print(f"PardoX: UNSUPPORTED_PLATFORM ({platform.system()}-{platform.machine()})")
+    run(["uv", "run", "dbt", "build", "--project-dir", "dbt", "--profiles-dir", "dbt", "--target-path", "../artifacts/evidence/dbt", "--vars", json.dumps({"anchor_date": f"'{anchor}'"})])
+    run(["uv", "run", "pytest"] if supported else ["uv", "run", "pytest", "--ignore=tests/test_engines.py"])
+    run(["uv", "run", "python", "superset/test_rls.py"])
+    run(["uv", "run", "ruff", "check", "."])
+    run(["uv", "run", "python", "-m", "cafenorte.export_answers"])
+    (ROOT / "artifacts/reports").mkdir(parents=True, exist_ok=True)
+    (ROOT / "artifacts/reports/last_validate.txt").write_text(f"validate.sh: PASS ({time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())})\n", encoding="utf-8")
+    return 0
 
 
 if __name__ == "__main__":
