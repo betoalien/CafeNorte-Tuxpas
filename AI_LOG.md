@@ -9,9 +9,10 @@ pytest y la documentación oficial de PardoX y AWS.
 
 El flujo fue deliberadamente separado: Codex implementó, Claude revisó contra los archivos
 originales y el propietario decidió. Trabajé en bloques pequeños con la instrucción
-“detente al terminar”, cada uno con validación y commit. No usé subagentes ni servidores
-MCP para este repositorio; la revisión fue independiente y el propietario resolvió cualquier
-discrepancia de contexto.
+“detente al terminar”, cada uno con validación y commit. No usé subagentes. Claude Code
+trabajó sobre el repositorio en la Mac del propietario mediante el puente de dispositivos
+de la app de Claude (herramientas MCP remote-devices); Codex trabajó directamente en el
+repositorio local.
 
 ## Prompts clave y decisiones
 
@@ -42,14 +43,14 @@ conciliación, FX, costos y marts.
 **Decisión:** aceptar con restricciones. PardoX procesa `sales.csv` de forma aislada; Polars sigue
 siendo referencia y ninguna ruta experimental reemplaza Silver.
 
-### 4. Validación del reto
+### 4. CFDI y criterio de negocio
 
-**Prompt:** “Bloque B/C: ingesta con cuarentena, Silver inmutable, dbt para Gold y cuatro respuestas; detente antes del siguiente bloque”.
+**Prompt:** Claude propuso interpretar `tipo_comprobante` según el SAT: restar E y excluir P/T/N.
 
-**Respuesta:** generó contratos, manifests, pruebas, modelos y harness.
+**Respuesta:** esa regla habría invertido u omitido aproximadamente MXN 1.4 M de ventas.
 
-**Decisión:** modificar durante la revisión: añadí controles negativos, hashes antes/después,
-idempotencia por `run_id`, ventanas explícitas y pruebas de magnitud.
+**Decisión:** el propietario rechazó la propuesta. El perfilado confirmó cantidades positivas y
+precios unitarios superpuestos en los cinco tipos: se cuenta, no se suma ni se resta.
 
 ### 5. Carga incremental
 

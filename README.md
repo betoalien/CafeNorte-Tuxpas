@@ -6,7 +6,7 @@
 
 ## El reto
 
-El PDF pide ingerir, normalizar y conciliar las fuentes, persistir un modelo analítico,
+El reto pide ingerir, normalizar y conciliar las fuentes, persistir un modelo analítico,
 responder cuatro preguntas y entregar una propuesta AWS con tests mínimos. Las fuentes
 son `sales.csv` del POS (CSV, 86,490 filas), `inventory.json` del ERP legacy (JSON
 anidado, 230,776 snapshots) y `ecommerce_orders.parquet` de Shopify (9,947 órdenes).
@@ -20,24 +20,24 @@ USD 200 mensuales.
 
 ## Lo que encontré
 
-Cinco mappings tienen `sku_erp` nulo: 6,132 ventas, por 2,524,147.68 MXN, habrían
-parecido conciliadas si se hubiera contado solo la existencia de la clave. Los tipos
-CFDI son I=82,518, E=3,079, P=451, N=288 y T=154; se cuentan sin cambiar signo ni
-inclusión. `N/A` representa 4,417 snapshots desconocidos, no stock cero. EUR=22.0
-aparece durante 63 días: se usa con `suspected_truncation`. El ERP trae 15 ciudades;
-el relato menciona CDMX, Bajío, Monterrey, Guadalajara y la frontera, por lo que las
-siete ciudades no mencionadas y las regiones inconsistentes se reportan sin corregirlas.
-La PII de Shopify se excluye de Silver y Gold. La hora POS se interpreta como hora
-local de la tienda. Las interpretaciones largas viven en [`profiling.md`](artifacts/evidence/profiling.md)
+- **Mapping incompleto** — 6,132 ventas y 2,524,147.68 MXN tienen `sku_erp` nulo — lo conservo como ausencia de mapping y uso el número de producto como respaldo.
+- **CFDI** — I=82,518, E=3,079, P=451, N=288 y T=154 — cuento cada tipo sin cambiar signo ni inclusión.
+- **Inventario desconocido** — 4,417 snapshots son `N/A` — los trato como desconocidos, nunca como stock cero.
+- **Tipo de cambio** — EUR=22.0 aparece durante 63 días — lo uso con `suspected_truncation`.
+- **Catálogo geográfico** — el ERP trae 15 ciudades, siete no mencionadas en el relato y regiones inconsistentes — las reporto sin corregirlas.
+- **Privacidad** — Shopify contiene PII — la excluyo de Silver y Gold.
+- **Tiempo** — `fecha_hora` de POS es hora local de la tienda — dejo la conversión para dbt usando el maestro.
+
+Las interpretaciones largas viven en [`profiling.md`](artifacts/evidence/profiling.md)
 y [`docs/BUSINESS_METRICS.md`](docs/BUSINESS_METRICS.md).
 
 ## Las respuestas
 
-| Pregunta del PDF | Respuesta | Periodo |
+| Pregunta del reto | Respuesta | Periodo |
 |---|---|---|
-| Top 10 SKUs por rotación | `057-C` 1.362, `012-B` 1.226, `041-D` 1.201 | 2025-10-01—2026-03-31 |
-| Tiendas con quiebres >3 días | `T015`, `T023`, `T038` | 2026-01-01—2026-03-31 |
-| Crecimiento MoM por canal | `FISICO` suma las 40 tiendas; `ECOMMERCE` es ONLINE; se conserva el detalle | 2025-04-01—2026-03-31 |
+| Top 10 SKUs por rotación | Top 3 de 10: `057-C` 1.362, `012-B` 1.226, `041-D` 1.201 | 2025-10-01—2026-03-31 |
+| Tiendas con quiebres >3 días | `T015`, `T023`, `T038`; una racha de 4 días cada una | 2026-01-01—2026-03-31 |
+| Crecimiento MoM por canal | Físico 20.72 M MXN (+2.7% abr→mar); e-commerce 4.23 M MXN (−8.5%); e-commerce = 16.9% de las ventas | 2025-04-01—2026-03-31 |
 | Productos con margen negativo | `015-D` −158,216.09, `002-B` −47,595.85, `001-A` −12,663.62 MXN | 2025-04-01—2026-03-31 |
 
 Interpreté las ventanas con ancla común 2026-03-31. La rotación usa unidades POS e
@@ -45,7 +45,9 @@ inventario ERP válido de la red; el trimestre es calendario; P3 publica físico
 y drill-down por tienda; P4 usa el costo vigente en la fecha de venta. Las respuestas
 completas y sus consultas están en [`artifacts/evidence/answers/`](artifacts/evidence/answers/).
 En términos de negocio, `015-D` combina volumen con margen negativo porque su costo
-supera el precio de venta: revisaría precio y proveedor antes de crecer ese SKU.
+supera el precio de venta: revisaría precio y proveedor antes de crecer ese SKU. La tienda
+en línea pierde terreno en el año aunque repunta en marzo (+8.5% MoM); preguntaría por
+cambios de catálogo, precio o tipo de cambio en Shopify.
 
 ## Cómo lo construí
 
@@ -66,7 +68,7 @@ métricas; Superset solo consulta Gold con RLS. Los detalles y ADRs están en
 
 ## Cómo sé que es correcto
 
-Recálculé resultados desde los archivos originales y comparé hashes con
+Recalculé resultados desde los archivos originales y comparé hashes con
 [`datos/SHA256SUMS`](datos/SHA256SUMS). dbt prueba invariantes y cifras, pytest prueba
 contratos, cuarentena, idempotencia y transformación, y el control negativo de paridad
 detecta alteraciones reales. También probé RLS con la API y ejecuté el flujo desde un
@@ -98,7 +100,7 @@ identificado como tal.
 Requisitos y problemas comunes están en [`docs/INSTALACION.md`](docs/INSTALACION.md).
 
 ```bash
-git clone <repositorio>
+git clone https://github.com/betoalien/CafeNorte-Tuxpas.git
 cd CafeNorte-Tuxpas
 ./scripts/start.sh
 ./scripts/validate.sh
@@ -106,10 +108,10 @@ cd CafeNorte-Tuxpas
 
 Al terminar aparece `Superset listo` y un reporte HTML. `director` ve la red completa;
 `gerente_t001` ve T001 en P2/P3/P4. Las contraseñas se muestran con
-`./scripts/credentials.sh`; Windows tiene `scripts\\windows\\start.bat`.
+`./scripts/credentials.sh`; Windows tiene `scripts/windows/start.bat`.
 
 Cuando llegan datos nuevos, `skipped` no toca Silver; `incremental` inserta claves nuevas
-y conserva el `run_id` original; `full` reemplaza solo la fuente que cambió estructuralmente.
+y conserva el `run_id` original; `full` reemplaza la tabla de la fuente cuando cambia o desaparece una fila existente.
 
 ## PardoX
 
@@ -160,9 +162,12 @@ bloque terminó con validación y commit propio. La bitácora completa está en
 
 ## Llevarlo a producción
 
-Propongo S3, Glue, RDS PostgreSQL, ElastiCache Redis y QuickSight bajo una estimación de
-USD 34.49/mes, dentro de USD 200, con fases de endurecimiento y preguntas abiertas en
-[`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md).
+Propongo S3 para Bronze, Silver y Gold; Lambda y ECS/Fargate para ingesta y batch; Glue
+Catalog, Athena y dbt para catálogo, consulta y semántica; Apache Superset en Lightsail
+4 GB con OAuth y HTTPS para el visor; Secrets Manager para credenciales; y
+CloudWatch/CloudTrail para operación y auditoría. Todo va en `us-east-1`: cuesta USD
+34.49/mes, deja USD 165.51 bajo el límite y descarta QuickSight por su costo por lector.
+La arquitectura completa está en [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md).
 
 ## Limitaciones y siguientes pasos
 
