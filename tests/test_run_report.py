@@ -36,7 +36,9 @@ def _assert_report(content: str) -> None:
         conn.cursor() as cur,
     ):
         cur.execute(
-            "SELECT product_id, round(sum(gross_margin_mxn), 2) FROM analytics.mart_negative_margin_products GROUP BY product_id ORDER BY sum(gross_margin_mxn)"  # noqa: E501
+            "SELECT product_id, round(sum(gross_margin_mxn), 2) "
+            "FROM analytics.mart_negative_margin_products "
+            "GROUP BY product_id ORDER BY sum(gross_margin_mxn)"
         )
         for product, margin in cur.fetchall():
             assert html.escape(str(product)) in content

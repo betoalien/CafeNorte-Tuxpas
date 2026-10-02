@@ -33,6 +33,46 @@ GOLD_TABLES = [
     "mart_source_reconciliation",
 ]
 
+LAST_SUCCESSFUL_RUN_SQL = (
+    "SELECT run_id, started_at, completed_at FROM audit.run_log "
+    "WHERE status IN ('succeeded','success','completed') "
+    "ORDER BY started_at DESC LIMIT 1"
+)
+MANIFEST_SQL = (
+    "SELECT source_file, load_mode, input_count, accepted_count, rejected_count, "
+    "sha256_after, completed_at FROM audit.ingestion_manifest "
+    "WHERE run_id=%s ORDER BY source_file"
+)
+LAST_RUN_SQL = (
+    "SELECT run_id, started_at, completed_at, status, load_mode "
+    "FROM audit.run_log ORDER BY started_at DESC LIMIT 1"
+)
+P1_SQL = (
+    "SELECT product_id, inventory_turnover_ratio "
+    "FROM analytics.mart_inventory_turnover_top10 ORDER BY ranking LIMIT 3"
+)
+P2_SQL = (
+    "SELECT tienda_id, product_id, start_date, end_date, days "
+    "FROM analytics.mart_stockouts_over_3_days ORDER BY tienda_id, start_date"
+)
+ONLINE_SQL = (
+    "SELECT month_start, mom_growth_pct FROM analytics.mart_monthly_channel_growth "
+    "WHERE channel='ONLINE' ORDER BY month_start DESC LIMIT 1"
+)
+HIGHEST_MOM_SQL = (
+    "SELECT channel, mom_growth_pct FROM analytics.mart_monthly_channel_growth "
+    "WHERE mom_growth_pct IS NOT NULL ORDER BY mom_growth_pct DESC LIMIT 1"
+)
+LOWEST_MOM_SQL = (
+    "SELECT channel, mom_growth_pct FROM analytics.mart_monthly_channel_growth "
+    "WHERE mom_growth_pct IS NOT NULL ORDER BY mom_growth_pct LIMIT 1"
+)
+P4_SQL = (
+    "SELECT product_id, round(sum(gross_margin_mxn), 2) "
+    "FROM analytics.mart_negative_margin_products "
+    "GROUP BY product_id ORDER BY sum(gross_margin_mxn)"
+)
+
 
 def esc(value: object) -> str:
     return html.escape("" if value is None else str(value))
@@ -118,16 +158,11 @@ def fmt_number(value: object) -> str:
 def source_rows(
     cur: psycopg.Cursor, current_run: tuple, force_mode: str | None
 ) -> tuple[list[tuple], str]:
-    cur.execute(
-        "SELECT run_id, started_at, completed_at FROM audit.run_log WHERE status IN ('succeeded','success','completed') ORDER BY started_at DESC LIMIT 1"  # noqa: E501
-    )
+    cur.execute(LAST_SUCCESSFUL_RUN_SQL)
     successful = cur.fetchone() or current_run
     skipped = force_mode == "skipped" or (current_run and str(current_run[0]) != str(successful[0]))
     manifest_run = successful[0] if skipped else current_run[0]
-    cur.execute(
-        "SELECT source_file, load_mode, input_count, accepted_count, rejected_count, sha256_after, completed_at FROM audit.ingestion_manifest WHERE run_id=%s ORDER BY source_file",  # noqa: E501
-        (manifest_run,),
-    )
+    cur.execute(MANIFEST_SQL, (manifest_run,))
     records = {Path(str(row[0])).name: row for row in cur.fetchall()}
     expected = original_hashes()
     rows = []
@@ -157,7 +192,10 @@ def source_rows(
             )
         )
     summary = (
-        f"Corrida skipped: las 4 fuentes no cambiaron desde {short(successful[0])} ({local_time(successful[2])})"  # noqa: E501
+        (
+            "Corrida skipped: las 4 fuentes no cambiaron desde "
+            f"{short(successful[0])} ({local_time(successful[2])})"
+        )
         if skipped
         else ""
     )
@@ -170,15 +208,11 @@ def query_answers() -> dict[str, str]:
         psycopg.connect(**conn_kwargs("superset_ro", "SUPERSET_RO_PASSWORD")) as conn,
         conn.cursor() as cur,
     ):
-        cur.execute(
-            "SELECT product_id, inventory_turnover_ratio FROM analytics.mart_inventory_turnover_top10 ORDER BY ranking LIMIT 3"  # noqa: E501
-        )
+        cur.execute(P1_SQL)
         answers["P1"] = "; ".join(
             f"{product}: {fmt_number(ratio)}x" for product, ratio in cur.fetchall()
         )
-        cur.execute(
-            "SELECT tienda_id, product_id, start_date, end_date, days FROM analytics.mart_stockouts_over_3_days ORDER BY tienda_id, start_date"  # noqa: E501
-        )
+        cur.execute(P2_SQL)
         answers["P2"] = (
             "; ".join(
                 f"{store} / {product}: {start}—{end} ({days} días)"
@@ -186,24 +220,19 @@ def query_answers() -> dict[str, str]:
             )
             or "Sin rachas certificadas"
         )
-        cur.execute(
-            "SELECT month_start, mom_growth_pct FROM analytics.mart_monthly_channel_growth WHERE channel='ONLINE' ORDER BY month_start DESC LIMIT 1"  # noqa: E501
-        )
+        cur.execute(ONLINE_SQL)
         online = cur.fetchone()
-        cur.execute(
-            "SELECT channel, mom_growth_pct FROM analytics.mart_monthly_channel_growth WHERE mom_growth_pct IS NOT NULL ORDER BY mom_growth_pct DESC LIMIT 1"  # noqa: E501
-        )
+        cur.execute(HIGHEST_MOM_SQL)
         highest = cur.fetchone()
-        cur.execute(
-            "SELECT channel, mom_growth_pct FROM analytics.mart_monthly_channel_growth WHERE mom_growth_pct IS NOT NULL ORDER BY mom_growth_pct LIMIT 1"  # noqa: E501
-        )
+        cur.execute(LOWEST_MOM_SQL)
         lowest = cur.fetchone()
         answers["P3"] = (
-            f"ONLINE último mes: {fmt_number(online[1])}% ({online[0]}); mayor: {highest[0]} {fmt_number(highest[1])}%; menor: {lowest[0]} {fmt_number(lowest[1])}%"  # noqa: E501
+            "ONLINE último mes: "
+            f"{fmt_number(online[1])}% ({online[0]}); mayor: "
+            f"{highest[0]} {fmt_number(highest[1])}%; menor: "
+            f"{lowest[0]} {fmt_number(lowest[1])}%"
         )
-        cur.execute(
-            "SELECT product_id, round(sum(gross_margin_mxn), 2) FROM analytics.mart_negative_margin_products GROUP BY product_id ORDER BY sum(gross_margin_mxn)"  # noqa: E501
-        )
+        cur.execute(P4_SQL)
         answers["P4"] = "; ".join(
             f"{product}: {fmt_number(margin)} MXN" for product, margin in cur.fetchall()
         )
@@ -217,12 +246,38 @@ def hidden_credentials() -> str:
         ("gerente_t001", env("GERENTE_T001_PASSWORD"), "T001 en P2/P3/P4"),
     ]
     rows = "".join(
-        f"<tr><td>{esc(user)}</td><td>{esc(role)}</td><td><span class='secret' data-secret='{esc(password)}'>••••••••</span> <button type='button' onclick='showSecret(this)'>Mostrar</button> <button type='button' onclick='copySecret(this)'>Copiar</button></td></tr>"  # noqa: E501
+        "<tr><td>"
+        + esc(user)
+        + "</td><td>"
+        + esc(role)
+        + "</td><td><span class='secret' data-secret='"
+        + esc(password)
+        + "'>••••••••</span> <button type='button' "
+        + "onclick='showSecret(this)'>Mostrar</button> <button type='button' "
+        + "onclick='copySecret(this)'>Copiar</button></td></tr>"
         for user, password, role in values
     )
-    return f"<div id='credentials'><p><b>Credenciales locales de demostración, generadas para esta instalación.</b></p><table><tr><th>Usuario</th><th>Rol</th><th>Contraseña</th></tr>{rows}</table></div>"  # noqa: E501
+    return (
+        "<div id='credentials'><p><b>Credenciales locales de demostración, "
+        "generadas para esta instalación.</b></p><table><tr><th>Usuario</th>"
+        "<th>Rol</th><th>Contraseña</th></tr>"
+        + rows
+        + "</table></div>"
+    )
 
 
+def render_source_row(source: tuple) -> str:
+    name, source_mode, input_count, accepted, rejected, digest, completed, verified = source
+    return (
+        "<tr><td>"
+        + esc(name)
+        + "</td><td>"
+        + esc(source_mode)
+        + f"</td><td>{input_count:,}</td><td>{accepted:,}</td>"
+        + f"<td>{rejected:,}</td><td>{esc(str(digest)[:12])}</td>"
+        + f"<td>{'original del cliente ✓' if verified else 'no verificado'}</td>"
+        + f"<td>{local_time(completed)}</td></tr>"
+    )
 def render(force_mode: str | None = None) -> str:
     with (
         psycopg.connect(
@@ -230,9 +285,7 @@ def render(force_mode: str | None = None) -> str:
         ) as conn,
         conn.cursor() as cur,
     ):
-        cur.execute(
-            "SELECT run_id, started_at, completed_at, status, load_mode FROM audit.run_log ORDER BY started_at DESC LIMIT 1"  # noqa: E501
-        )
+        cur.execute(LAST_RUN_SQL)
         run = cur.fetchone()
         if not run:
             raise RuntimeError("No existe una corrida en audit.run_log")
@@ -258,21 +311,61 @@ def render(force_mode: str | None = None) -> str:
     validate_status = "PASS" if "PASS" in validate else "FAIL"
     duration = (run[2] - run[1]).total_seconds() if run[1] and run[2] else 0.0
     answers = query_answers()
-    source_html = "".join(
-        f"<tr><td>{esc(name)}</td><td>{esc(mode)}</td><td>{input_count:,}</td><td>{accepted:,}</td><td>{rejected:,}</td><td>{esc(str(digest)[:12])}</td><td>{'original del cliente ✓' if verified else 'no verificado'}</td><td>{local_time(completed)}</td></tr>"  # noqa: E501
-        for name, mode, input_count, accepted, rejected, digest, completed, verified in sources
-    )
+    source_html = "".join(render_source_row(source) for source in sources)
     rows = "".join(f"<tr><td>{esc(name)}</td><td>{count:,}</td></tr>" for name, count in silver)
-    gold_rows = "".join(f"<tr><td>{esc(name)}</td><td>{count:,}</td></tr>" for name, count in gold)
+    gold_rows = "".join(
+        f"<tr><td>{esc(name)}</td><td>{count:,}</td></tr>" for name, count in gold
+    )
     answer_rows = "".join(
         f"<tr><th>{key}</th><td>{esc(value)}</td></tr>" for key, value in answers.items()
     )
     port = env("SUPERSET_PORT")
     dashboard_url = f"http://127.0.0.1:{port}/superset/dashboard/cafenorte-4-respuestas/"
     mode = "skipped" if force_mode == "skipped" else ("full" if force_mode == "full" else run[4])
-    links = "<a href='../evidence/benchmark.md'>benchmark</a> · <a href='../evidence/final-validation.md'>validación final</a> · <a href='../../README.md'>README</a> · <a href='../../AI_LOG.md'>AI_LOG</a>"  # noqa: E501
+    links = (
+        "<a href='../evidence/benchmark.md'>benchmark</a> · "
+        "<a href='../evidence/final-validation.md'>validación final</a> · "
+        "<a href='../../README.md'>README</a> · "
+        "<a href='../../AI_LOG.md'>AI_LOG</a>"
+    )
     summary_html = f"<p class='summary'>{esc(summary)}</p>" if summary else ""
-    return f"""<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='color-scheme' content='light dark'><title>CaféNorte · reporte de corrida</title><style>body{{font:15px system-ui,sans-serif;max-width:1200px;margin:2rem auto;padding:0 1rem;line-height:1.45}}table{{border-collapse:collapse;width:100%;margin:1rem 0}}td,th{{border:1px solid #888;padding:.45rem;text-align:left}}th{{background:#8882}}code{{background:#8883;padding:.1rem .3rem}}a{{color:#1769aa}}button{{margin-left:.25rem}}.summary{{padding:.7rem;border-left:4px solid #1769aa}}.state{{font-size:1.1rem}}@media(prefers-color-scheme:dark){{a{{color:#7cc4ff}}}}</style><script>function showSecret(b){{const s=b.parentElement.querySelector('.secret');const shown=s.dataset.shown==='1';s.textContent=shown?'••••••••':s.dataset.secret;s.dataset.shown=shown?'0':'1';b.textContent=shown?'Mostrar':'Ocultar'}}function copySecret(b){{navigator.clipboard.writeText(b.parentElement.querySelector('.secret').dataset.secret)}}</script></head><body><h1>CaféNorte · reporte de corrida</h1>{summary_html}<p class='state'><b>Estado:</b> carga <code>{esc(mode)}</code> · validate <b>{validate_status}</b> ({esc(local_time(dt.datetime.now(dt.UTC)))}) · PardoX: {esc(platform_label())}</p><p><b>run_id:</b> <code>{esc(run[0])}</code><br><b>inicio:</b> {esc(local_time(run[1]))}<br><b>fin:</b> {esc(local_time(run[2]))}<br><b>duración:</b> {duration:.2f} s</p><h2>Fuentes</h2><table><tr><th>Fuente</th><th>Modo</th><th>Input</th><th>Aceptadas</th><th>Rechazadas</th><th>SHA-256</th><th>Verificación</th><th>Carga</th></tr>{source_html}</table><h2>Silver</h2><table><tr><th>Tabla</th><th>Filas</th></tr>{rows}</table><h2>Gold (analytics)</h2><table><tr><th>Tabla</th><th>Filas</th></tr>{gold_rows}</table><h2>Respuestas</h2><table>{answer_rows}</table><h2>Superset listo</h2><p><a href='{esc(dashboard_url)}'>{esc(dashboard_url)}</a><br><b>director</b>: toda la red, incluido ONLINE<br><b>gerente_t001</b>: solo tienda T001 en P2/P3/P4<br><b>admin</b>: solo administración</p>{hidden_credentials()}<h2>Validación</h2><pre>{esc(validate)}</pre><p>{links}</p></body></html>"""  # noqa: E501
+    return (
+        "<!doctype html><html lang='es'><head><meta charset='utf-8'>"
+        "<meta name='color-scheme' content='light dark'>"
+        "<title>CaféNorte · reporte de corrida</title>"
+        "<style>body{font:15px system-ui,sans-serif;max-width:1200px;"
+        "margin:2rem auto;padding:0 1rem;line-height:1.45}"
+        "table{border-collapse:collapse;width:100%;margin:1rem 0}"
+        "td,th{border:1px solid #888;padding:.45rem;text-align:left}th{background:#8882}"
+        "code{background:#8883;padding:.1rem .3rem}a{color:#1769aa}button{margin-left:.25rem}"
+        ".summary{padding:.7rem;border-left:4px solid #1769aa}.state{font-size:1.1rem}"
+        "@media(prefers-color-scheme:dark){a{color:#7cc4ff}}</style>"
+        "<script>function showSecret(b){const s=b.parentElement.querySelector('.secret');"
+        "const shown=s.dataset.shown==='1';s.textContent=shown?'••••••••':s.dataset.secret;"
+        "s.dataset.shown=shown?'0':'1';b.textContent=shown?'Mostrar':'Ocultar'}"
+        "function copySecret(b){navigator.clipboard.writeText("
+        "b.parentElement.querySelector('.secret').dataset.secret)}"
+        "</script></head><body><h1>CaféNorte · reporte de corrida</h1>"
+        f"{summary_html}<p class='state'><b>Estado:</b> carga <code>{esc(mode)}</code> · "
+        f"validate <b>{validate_status}</b> ({esc(local_time(dt.datetime.now(dt.UTC)))}) · "
+        f"PardoX: {esc(platform_label())}</p>"
+        f"<p><b>run_id:</b> <code>{esc(run[0])}</code><br>"
+        f"<b>inicio:</b> {esc(local_time(run[1]))}<br>"
+        f"<b>fin:</b> {esc(local_time(run[2]))}<br>"
+        f"<b>duración:</b> {duration:.2f} s</p>"
+        "<h2>Fuentes</h2><table><tr><th>Fuente</th><th>Modo</th><th>Input</th>"
+        "<th>Aceptadas</th><th>Rechazadas</th><th>SHA-256</th><th>Verificación</th>"
+        f"<th>Carga</th></tr>{source_html}</table>"
+        "<h2>Silver</h2><table><tr><th>Tabla</th><th>Filas</th></tr>"
+        f"{rows}</table><h2>Gold (analytics)</h2><table><tr><th>Tabla</th><th>Filas</th></tr>"
+        f"{gold_rows}</table><h2>Respuestas</h2><table>{answer_rows}</table>"
+        "<h2>Superset listo</h2><p>"
+        f"<a href='{esc(dashboard_url)}'>{esc(dashboard_url)}</a><br>"
+        "<b>director</b>: toda la red, incluido ONLINE<br>"
+        "<b>gerente_t001</b>: solo tienda T001 en P2/P3/P4<br>"
+        f"<b>admin</b>: solo administración</p>{hidden_credentials()}"
+        f"<h2>Validación</h2><pre>{esc(validate)}</pre><p>{links}</p></body></html>"
+    )
 
 
 def open_report(path: Path, no_browser: bool) -> None:

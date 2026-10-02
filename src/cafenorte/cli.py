@@ -18,6 +18,56 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = ROOT / ".env"
 
+ANCHOR_DATE_SQL = (
+    'SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), '
+    '(SELECT max(fecha::date) FROM silver.ecommerce_orders), '
+    '(SELECT max(fecha) FROM silver.inventory_snapshots));'
+)
+LAST_RUN_SQL = (
+    "SELECT run_id, status, input_count, accepted_count, rejected_count "
+    "FROM audit.run_log ORDER BY started_at DESC LIMIT 1;"
+)
+SILVER_COUNTS_SQL = (
+    "SELECT table_name, row_count FROM ("
+    "SELECT 'silver.pos_sales' AS table_name, count(*) AS row_count FROM silver.pos_sales "
+    "UNION ALL SELECT 'silver.inventory_snapshots', count(*) FROM silver.inventory_snapshots "
+    "UNION ALL SELECT 'silver.ecommerce_orders', count(*) FROM silver.ecommerce_orders "
+    "UNION ALL SELECT 'silver.exchange_rates', count(*) FROM silver.exchange_rates "
+    "UNION ALL SELECT 'silver.stores', count(*) FROM silver.stores "
+    "UNION ALL SELECT 'silver.products', count(*) FROM silver.products "
+    "UNION ALL SELECT 'silver.sku_mappings', count(*) FROM silver.sku_mappings"
+    ") counts ORDER BY table_name;"
+)
+GOLD_COUNTS_SQL = (
+    "SELECT table_name, row_count FROM ("
+    "SELECT 'analytics.mart_inventory_turnover_top10' AS table_name, count(*) AS row_count "
+    "FROM analytics.mart_inventory_turnover_top10 "
+    "UNION ALL SELECT 'analytics.mart_stockouts_over_3_days', count(*) "
+    "FROM analytics.mart_stockouts_over_3_days "
+    "UNION ALL SELECT 'analytics.mart_monthly_channel_growth', count(*) "
+    "FROM analytics.mart_monthly_channel_growth "
+    "UNION ALL SELECT 'analytics.mart_negative_margin_products', count(*) "
+    "FROM analytics.mart_negative_margin_products "
+    "UNION ALL SELECT 'analytics.mart_source_reconciliation', count(*) "
+    "FROM analytics.mart_source_reconciliation"
+    ") gold_counts ORDER BY table_name;"
+)
+SCHEMAS_ROLES_SQL = (
+    "SELECT schema_name FROM information_schema.schemata WHERE schema_name IN "
+    "('silver', 'audit', 'intermediate', 'analytics'); "
+    "SELECT rolname FROM pg_roles WHERE rolname IN "
+    "('pipeline', 'dbt', 'superset_ro', 'superset_meta'); "
+    "SELECT datname FROM pg_database WHERE datname = 'superset_meta';"
+)
+
+
+def psql_command(sql: str, *, readonly: bool = False) -> str:
+    stop = ' --set=ON_ERROR_STOP=1' if not readonly else ""
+    return (
+        'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"'
+        f'{stop} -c "{sql}"'
+    )
+
 STEP_PLANS = {
     "start": [
         "doctor",
@@ -176,7 +226,10 @@ def doctor() -> int:
     if shutil.which("docker"):
         if run(["docker", "info"], check=False, capture=True).returncode:
             print(
-                "ERROR: el daemon de Docker no es accesible. En Linux: sudo usermod -aG docker $USER o sudo systemctl start docker.",  # noqa: E501
+                (
+                    "ERROR: el daemon de Docker no es accesible. En Linux: "
+                    "sudo usermod -aG docker $USER o sudo systemctl start docker."
+                ),
                 file=sys.stderr,
             )
             failed = True
@@ -208,7 +261,8 @@ def doctor() -> int:
         print("PardoX: binario incluido en 0.3.4, no verificado (sin runners macOS Intel en CI)")
     elif system == "Linux" and machine in {"aarch64", "arm64"}:
         print(
-            "PardoX: NO DISPONIBLE en linux-aarch64; el pipeline principal (Polars) no se ve afectado"  # noqa: E501
+            "PardoX: NO DISPONIBLE en linux-aarch64; el pipeline principal "
+            "(Polars) no se ve afectado"
         )
     else:
         print(f"PardoX: plataforma soportada ({system}-{machine})")
@@ -250,7 +304,7 @@ def start(args: argparse.Namespace) -> int:
                 "postgres",
                 "sh",
                 "-c",
-                'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -At -c "SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), (SELECT max(fecha::date) FROM silver.ecommerce_orders), (SELECT max(fecha) FROM silver.inventory_snapshots));"',  # noqa: E501
+                psql_command(ANCHOR_DATE_SQL, readonly=True),
             ],
             capture=True,
         ).stdout.strip()
@@ -306,9 +360,13 @@ def print_superset(show: bool, env: dict[str, str]) -> None:
     print("            gerente_t001  (solo tienda T001 en P2/P3/P4)")
     print("            admin         (solo administración)")
     if show:
-        print(
-            f"Contraseñas:\n  admin:        {env['SUPERSET_ADMIN_PASSWORD']}\n  director:     {env['DIRECTOR_PASSWORD']}\n  gerente_t001: {env['GERENTE_T001_PASSWORD']}"  # noqa: E501
-        )
+        passwords = [
+            "Contraseñas:",
+            f"  admin:        {env['SUPERSET_ADMIN_PASSWORD']}",
+            f"  director:     {env['DIRECTOR_PASSWORD']}",
+            f"  gerente_t001: {env['GERENTE_T001_PASSWORD']}",
+        ]
+        print("\n".join(passwords))
     else:
         print("Contraseñas: ./scripts/credentials.sh (o start.sh --show-credentials)")
     print(f"Reporte:    {ROOT / 'artifacts/reports/run_report.html'}")
@@ -405,27 +463,22 @@ def status() -> int:
     print("PostgreSQL:")
     compose_exec(env, 'pg_isready --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"')
     print("Última corrida:")
-    compose_exec(
-        env,
-        'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 -c "SELECT run_id, status, input_count, accepted_count, rejected_count FROM audit.run_log ORDER BY started_at DESC LIMIT 1;"',  # noqa: E501
-    )
+    compose_exec(env, psql_command(LAST_RUN_SQL))
     print("Silver:")
-    compose_exec(
-        env,
-        "psql --username \"$POSTGRES_USER\" --dbname \"$POSTGRES_DB\" --set=ON_ERROR_STOP=1 -c \"SELECT table_name, row_count FROM (SELECT 'silver.pos_sales' AS table_name, count(*) AS row_count FROM silver.pos_sales UNION ALL SELECT 'silver.inventory_snapshots', count(*) FROM silver.inventory_snapshots UNION ALL SELECT 'silver.ecommerce_orders', count(*) FROM silver.ecommerce_orders UNION ALL SELECT 'silver.exchange_rates', count(*) FROM silver.exchange_rates UNION ALL SELECT 'silver.stores', count(*) FROM silver.stores UNION ALL SELECT 'silver.products', count(*) FROM silver.products UNION ALL SELECT 'silver.sku_mappings', count(*) FROM silver.sku_mappings) counts ORDER BY table_name;\"",  # noqa: E501
-    )
+    compose_exec(env, psql_command(SILVER_COUNTS_SQL))
     result_file = ROOT / "artifacts/evidence/dbt/run_results.json"
     dbt_result = "sin corridas"
     if result_file.exists():
         payload = json.loads(result_file.read_text(encoding="utf-8"))
         statuses = [item.get("status") for item in payload.get("results", [])]
-        dbt_result = f"{payload.get('metadata', {}).get('generated_at', 'sin fecha')} PASS={statuses.count('pass')} WARN={statuses.count('warn')} ERROR={statuses.count('error')}"  # noqa: E501
+        dbt_result = (
+            f"{payload.get('metadata', {}).get('generated_at', 'sin fecha')} "
+            f"PASS={statuses.count('pass')} WARN={statuses.count('warn')} "
+            f"ERROR={statuses.count('error')}"
+        )
     print(f"Último dbt: {dbt_result}")
     print("Gold (analytics):")
-    compose_exec(
-        env,
-        "psql --username \"$POSTGRES_USER\" --dbname \"$POSTGRES_DB\" --set=ON_ERROR_STOP=1 -c \"SELECT table_name, row_count FROM (SELECT 'analytics.mart_inventory_turnover_top10' AS table_name, count(*) AS row_count FROM analytics.mart_inventory_turnover_top10 UNION ALL SELECT 'analytics.mart_stockouts_over_3_days', count(*) FROM analytics.mart_stockouts_over_3_days UNION ALL SELECT 'analytics.mart_monthly_channel_growth', count(*) FROM analytics.mart_monthly_channel_growth UNION ALL SELECT 'analytics.mart_negative_margin_products', count(*) FROM analytics.mart_negative_margin_products UNION ALL SELECT 'analytics.mart_source_reconciliation', count(*) FROM analytics.mart_source_reconciliation) gold_counts ORDER BY table_name;\"",  # noqa: E501
-    )
+    compose_exec(env, psql_command(GOLD_COUNTS_SQL))
     print(f"Reporte: {ROOT / 'artifacts/reports/run_report.html'}")
     return 0
 
@@ -461,10 +514,7 @@ def validate() -> int:
     if shutil.which("shellcheck"):
         run(["shellcheck", *(str(path) for path in shell_files)])
     compose(env, "config", "--quiet")
-    compose_exec(
-        env,
-        "psql --username \"$POSTGRES_USER\" --dbname \"$POSTGRES_DB\" --set=ON_ERROR_STOP=1 -c \"SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('silver', 'audit', 'intermediate', 'analytics'); SELECT rolname FROM pg_roles WHERE rolname IN ('pipeline', 'dbt', 'superset_ro', 'superset_meta'); SELECT datname FROM pg_database WHERE datname = 'superset_meta';\"",  # noqa: E501
-    )
+    compose_exec(env, psql_command(SCHEMAS_ROLES_SQL))
     for service, container in (("Superset", "cafenorte-superset"), ("Redis", "cafenorte-redis")):
         health = run(
             ["docker", "inspect", "--format={{.State.Health.Status}}", container],
@@ -476,7 +526,7 @@ def validate() -> int:
             return 1
     anchor = compose_exec(
         env,
-        'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -At -c "SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), (SELECT max(fecha::date) FROM silver.ecommerce_orders), (SELECT max(fecha) FROM silver.inventory_snapshots));"',  # noqa: E501
+        psql_command(ANCHOR_DATE_SQL, readonly=True),
         capture=True,
     ).stdout.strip()
     if not anchor or len(anchor) != 10:
