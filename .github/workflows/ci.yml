@@ -18,6 +18,11 @@ jobs:
         run: uv sync
       - name: Start stack
         run: ./scripts/start.sh --no-browser
+      - name: Regenerate env against existing volumes
+        run: |
+          rm .env
+          ./scripts/start.sh --no-browser | tee /tmp/cafenorte-regenerated-env.log
+          grep -q 'load_mode.*skipped' /tmp/cafenorte-regenerated-env.log
       - name: Validate
         run: ./scripts/validate.sh
 

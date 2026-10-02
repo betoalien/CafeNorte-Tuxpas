@@ -231,3 +231,4 @@ coincide con `datos/SHA256SUMS`.
 | `fuente original del cliente modificada` | Algún archivo de `datos/` cambió; restaura los originales del cliente |
 | `PardoX: UNSUPPORTED_PLATFORM` | Tu plataforma no tiene binario de PardoX; el resto de la validación sigue normal |
 | El dashboard no carga | `./scripts/status.sh` muestra la URL y el puerto reales; usa esa liga |
+| Contraseñas desalineadas entre copias | Todas las copias del repositorio comparten el mismo PostgreSQL y Superset por el nombre fijo del proyecto; `start` sincroniza los roles con `.env`. Si la metadata de Superset usa otra `SECRET_KEY`, ejecuta `uv run cafenorte reset --yes`. |

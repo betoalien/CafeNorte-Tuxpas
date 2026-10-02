@@ -278,7 +278,14 @@ def main():
         dashboard.json_metadata = json.dumps(
             dashboard_metadata(positions), ensure_ascii=False
         )
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            raise RuntimeError(
+                "La metadata de Superset fue creada con otra SECRET_KEY; "
+                "ejecuta `uv run cafenorte reset --yes`"
+            ) from exc
 
 
 if __name__ == "__main__":

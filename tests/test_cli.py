@@ -48,6 +48,32 @@ def test_default_superset_output_does_not_print_passwords(capsys, monkeypatch) -
     assert "credentials.sh" in output
 
 
+def test_role_sync_does_not_print_passwords(capsys, monkeypatch) -> None:
+    values = {
+        "POSTGRES_USER": "cafenorte_admin",
+        "POSTGRES_DB": "cafenorte",
+        "POSTGRES_PASSWORD": "admin-secret",
+        "PIPELINE_PASSWORD": "pipeline-secret",
+        "DBT_PASSWORD": "dbt-secret",
+        "SUPERSET_RO_PASSWORD": "ro-secret",
+        "SUPERSET_META_PASSWORD": "meta-secret",
+    }
+    calls = []
+    monkeypatch.setattr(
+        cli.subprocess,
+        "run",
+        lambda command, **kwargs: calls.append((command, kwargs))
+        or type("Completed", (), {"returncode": 0})(),
+    )
+    cli.sync_database_roles(values)
+    output = capsys.readouterr().out
+    command, kwargs = calls[0]
+    secrets = [value for key, value in values.items() if "PASSWORD" in key]
+    assert all(secret not in " ".join(command) for secret in secrets)
+    assert all(secret not in output for secret in secrets)
+    assert kwargs["input"]
+
+
 def test_ci_disables_browser(monkeypatch) -> None:
     monkeypatch.setenv("CI", "true")
     assert os.environ["CI"] == "true"

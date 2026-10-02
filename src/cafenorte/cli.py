@@ -17,6 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = ROOT / ".env"
+INIT_SCRIPT = ROOT / "docker/postgres/init/001_initialize.sh"
 
 ANCHOR_DATE_SQL = (
     'SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), '
@@ -164,6 +165,51 @@ def compose_exec(
     return compose(env, "exec", "-T", "postgres", "sh", "-c", command, capture=capture)
 
 
+def sync_database_roles(env: dict[str, str]) -> None:
+    """Reuse the role ALTER statements from the PostgreSQL init script."""
+    statements = [
+        line.strip()
+        for line in INIT_SCRIPT.read_text(encoding="utf-8").splitlines()
+        if line.strip().startswith("ALTER ROLE") and "PASSWORD" in line
+    ]
+    statements.insert(0, "ALTER ROLE cafenorte_admin PASSWORD :'admin_password';")
+    sql = "\\set admin_password '" + env["POSTGRES_PASSWORD"] + "'\n"
+    variables = {
+        "pipeline_password": env["PIPELINE_PASSWORD"],
+        "dbt_password": env["DBT_PASSWORD"],
+        "superset_ro_password": env["SUPERSET_RO_PASSWORD"],
+        "superset_meta_password": env["SUPERSET_META_PASSWORD"],
+    }
+    for name, value in variables.items():
+        sql += f"\\set {name} '{value}'\n"
+    sql += "\n".join(statements) + "\n"
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            "-i",
+            "cafenorte-postgres",
+            "psql",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-U",
+            env["POSTGRES_USER"],
+            "-d",
+            env["POSTGRES_DB"],
+        ],
+        input=sql,
+        text=True,
+        capture_output=True,
+        env=os.environ.copy(),
+    )
+    if result.returncode:
+        print(
+            "AVISO: no se pudieron sincronizar las contraseñas de PostgreSQL; "
+            "se continúa con el flujo normal.",
+            file=sys.stderr,
+        )
+
+
 def free_port() -> int:
     for _ in range(100):
         candidate = 20000 + secrets.randbelow(40001)
@@ -297,9 +343,26 @@ def start(args: argparse.Namespace) -> int:
         compose(env, "logs", "postgres", check=False)
         return 1
     os.environ.update(env)
+    sync_database_roles(env)
     result = run([sys.executable, "-m", "cafenorte.ingest"], capture=True)
+    if result.returncode:
+        print(
+            "ERROR: no se pudo conectar con PostgreSQL durante la ingesta. "
+            "La causa probable es un volumen compartido con credenciales antiguas; "
+            "ejecuta `uv run cafenorte reset --yes` y vuelve a iniciar.",
+            file=sys.stderr,
+        )
+        return 1
     print(result.stdout, end="")
-    payload = json.loads(result.stdout)
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        print(
+            "ERROR: la ingesta no devolvió un resultado válido. "
+            "Ejecuta `uv run cafenorte reset --yes` y vuelve a iniciar.",
+            file=sys.stderr,
+        )
+        return 1
     if payload.get("load_mode") != "skipped":
         anchor = run(
             [
