@@ -67,6 +67,13 @@ LOWEST_MOM_SQL = (
     "SELECT channel, mom_growth_pct FROM analytics.mart_monthly_channel_growth "
     "WHERE mom_growth_pct IS NOT NULL ORDER BY mom_growth_pct LIMIT 1"
 )
+P3_SUMMARY_SQL = (
+    "SELECT channel_type, sum(sales_mxn), "
+    "sum(sales_mxn) FILTER (WHERE month_start = DATE '2025-04-01'), "
+    "sum(sales_mxn) FILTER (WHERE month_start = DATE '2026-03-01') "
+    "FROM analytics.mart_monthly_channel_type_growth "
+    "GROUP BY channel_type ORDER BY channel_type"
+)
 P4_SQL = (
     "SELECT product_id, round(sum(gross_margin_mxn), 2) "
     "FROM analytics.mart_negative_margin_products "
@@ -226,11 +233,21 @@ def query_answers() -> dict[str, str]:
         highest = cur.fetchone()
         cur.execute(LOWEST_MOM_SQL)
         lowest = cur.fetchone()
+        cur.execute(P3_SUMMARY_SQL)
+        p3_totals = {row[0]: row[1:] for row in cur.fetchall()}
+        physical, ecommerce = p3_totals["FISICO"], p3_totals["ECOMMERCE"]
+        physical_mom = physical[2] / physical[1] - 1
+        ecommerce_mom = ecommerce[2] / ecommerce[1] - 1
+        total_sales = physical[0] + ecommerce[0]
         answers["P3"] = (
-            "ONLINE último mes: "
-            f"{fmt_number(online[1])}% ({online[0]}); mayor: "
-            f"{highest[0]} {fmt_number(highest[1])}%; menor: "
-            f"{lowest[0]} {fmt_number(lowest[1])}%"
+            f"Físico {fmt_number(physical[0] / 1_000_000)} M MXN "
+            f"({physical_mom * 100:.1f}% abr→mar); "
+            f"e-commerce {fmt_number(ecommerce[0] / 1_000_000)} M MXN "
+            f"({ecommerce_mom * 100:.1f}%); "
+            f"e-commerce = {ecommerce[0] / total_sales * 100:.1f}% de las ventas. "
+            f"Detalle por canal, último mes: ONLINE {fmt_number(online[1])}% ({online[0]}); "
+            f"mayor {highest[0]} {fmt_number(highest[1])}%; "
+            f"menor {lowest[0]} {fmt_number(lowest[1])}%"
         )
         cur.execute(P4_SQL)
         answers["P4"] = "; ".join(

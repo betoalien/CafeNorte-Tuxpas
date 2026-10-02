@@ -58,7 +58,7 @@ def dataset(database, table_name):
     return item
 
 
-def chart(name, datasource, viz_type, params):
+def chart(name, datasource, viz_type, params, description=None):
     from superset import db
     from superset.models.slice import Slice
 
@@ -70,6 +70,7 @@ def chart(name, datasource, viz_type, params):
     item.datasource_type = "table"
     item.viz_type = viz_type
     item.params = params
+    item.description = description
     item.query_context = None
     db.session.flush()
     return item
@@ -111,6 +112,30 @@ def dashboard_layout(charts):
             "children": [],
         },
     }
+    markdown_id = "MARKDOWN-P2-NOTE"
+    positions[markdown_id] = {
+        "type": "MARKDOWN",
+        "id": markdown_id,
+        "parents": ["ROOT_ID", "GRID_ID", "ROW-P2-NOTE"],
+        "children": [],
+        "meta": {
+            "code": (
+                "**P2 · Stockouts > 3 días (ene\u2013mar 2026).** Si no ves filas, "
+                "tus tiendas no tuvieron agotamientos de más de 3 días consecutivos "
+                "en el periodo. A nivel red hubo 3 casos (T015, T023, T038)."
+            ),
+            "width": 12,
+            "height": 20,
+        },
+    }
+    positions["ROW-P2-NOTE"] = {
+        "type": "ROW",
+        "id": "ROW-P2-NOTE",
+        "parents": ["ROOT_ID", "GRID_ID"],
+        "children": [markdown_id],
+        "meta": {"background": "BACKGROUND_TRANSPARENT"},
+    }
+    positions["GRID_ID"]["children"].append("ROW-P2-NOTE")
     for index in range(0, len(charts), 2):
         row_id = f"ROW-{index // 2 + 1}"
         row = {
@@ -216,6 +241,8 @@ def main():
                 tables["mart_stockouts_over_3_days"],
                 "table",
                 '{"all_columns": ["tienda_id", "product_id", "start_date", "end_date", "days"]}',
+                "Sin filas para esta tienda significa que no tuvo stockouts de más de 3 días "
+                "consecutivos en el periodo.",
             ),
             chart(
                 "P3 · Crecimiento por canal",

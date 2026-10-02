@@ -70,6 +70,12 @@ def main():
     if len(director_charts) < 5:
         raise AssertionError(f"dashboard must have at least five charts: {len(director_charts)}")
     by_name = {item["slice_name"]: item for item in director_charts}
+    p2_manager = query_chart(
+        base, manager_token, by_name["P2 · Stockouts > 3 días"], ["tienda_id", "product_id"]
+    )
+    p2_director = query_chart(
+        base, director_token, by_name["P2 · Stockouts > 3 días"], ["tienda_id", "product_id"]
+    )
     p3_manager = query_chart(
         base, manager_token, by_name["P3 · Crecimiento por canal"], ["channel"]
     )
@@ -80,6 +86,10 @@ def main():
         raise AssertionError(f"manager P3 leaked rows: {p3_manager[:3]}")
     if not p4_manager or not all(row["tienda_id"] == "T001" for row in p4_manager):
         raise AssertionError(f"manager P4 leaked rows: {p4_manager[:3]}")
+    if p2_manager:
+        raise AssertionError(f"manager P2 should have zero rows: {p2_manager[:3]}")
+    if len(p2_director) != 3:
+        raise AssertionError(f"director P2 expected three rows: {p2_director[:3]}")
     p3_director = query_chart(
         base, director_token, by_name["P3 · Crecimiento por canal"], ["channel"]
     )
@@ -88,6 +98,8 @@ def main():
         raise AssertionError(f"director P3 lacks network channels: {channels}")
     print(f"manager P3 rows={len(p3_manager)} channels=T001")
     print(f"manager P4 rows={len(p4_manager)} tienda_id=T001")
+    print(f"manager P2 rows={len(p2_manager)} (expected zero)")
+    print(f"director P2 rows={len(p2_director)} (expected three)")
     print(f"director P3 rows={len(p3_director)} channels={sorted(channels)}")
     print(f"negative control: director without T001 rule sees {len(channels)} channels")
     print(f"dashboard charts={len(director_charts)}")

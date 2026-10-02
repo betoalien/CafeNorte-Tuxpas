@@ -16,7 +16,11 @@ def test_dashboard_layout_has_consistent_nodes() -> None:
     ]
     positions = bootstrap.dashboard_layout(charts)
     assert positions["ROOT_ID"]["children"] == ["GRID_ID"]
-    assert positions["GRID_ID"]["children"] == ["ROW-1", "ROW-2", "ROW-3"]
+    assert positions["GRID_ID"]["children"] == [
+        "ROW-P2-NOTE", "ROW-1", "ROW-2", "ROW-3"
+    ]
+    assert positions["MARKDOWN-P2-NOTE"]["type"] == "MARKDOWN"
+    assert positions["MARKDOWN-P2-NOTE"]["meta"]["code"].startswith("**P2")
     for _node_id, node in positions.items():
         if not isinstance(node, dict):
             continue
