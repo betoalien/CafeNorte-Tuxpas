@@ -63,9 +63,10 @@ SCHEMAS_ROLES_SQL = (
 
 def psql_command(sql: str, *, readonly: bool = False) -> str:
     stop = ' --set=ON_ERROR_STOP=1' if not readonly else ""
+    output = " -At" if readonly else ""
     return (
         'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"'
-        f'{stop} -c "{sql}"'
+        f"{stop}{output} -c \"{sql}\""
     )
 
 STEP_PLANS = {
