@@ -64,6 +64,21 @@ create_env_file() {
     exit 1
   fi
 
+  local postgres_port="$selected_port"
+  selected_port=""
+  attempt=1
+  while [[ "$attempt" -le 100 ]]; do
+    selected_port="$(random_port)"
+    if port_is_free "$selected_port"; then break; fi
+    selected_port=""
+    attempt=$((attempt + 1))
+  done
+  if [[ -z "$selected_port" ]]; then
+    echo "No free Superset port found after 100 attempts." >&2
+    exit 1
+  fi
+  local superset_port="$selected_port"
+
   umask 077
   temp_file="${env_file}.tmp.$$"
   trap 'rm -f "${temp_file:-}"' EXIT HUP INT TERM
@@ -75,7 +90,12 @@ create_env_file() {
     printf 'DBT_PASSWORD=%s\n' "$(openssl rand -hex 24)"
     printf 'SUPERSET_RO_PASSWORD=%s\n' "$(openssl rand -hex 24)"
     printf 'SUPERSET_META_PASSWORD=%s\n' "$(openssl rand -hex 24)"
-    printf 'POSTGRES_PORT=%s\n' "$selected_port"
+    printf 'SUPERSET_SECRET_KEY=%s\n' "$(openssl rand -hex 32)"
+    printf 'SUPERSET_ADMIN_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+    printf 'GERENTE_T001_PASSWORD=%s\n' "$(openssl rand -hex 24)"
+    printf 'POSTGRES_PORT=%s\n' "$postgres_port"
+    printf 'SUPERSET_PORT=%s\n' "$superset_port"
+    printf 'REDIS_PORT=%s\n' "$((superset_port + 1))"
   } >"$temp_file"
   chmod 600 "$temp_file"
   mv "$temp_file" "$env_file"
@@ -102,12 +122,13 @@ if grep -Eq '^POSTGRES_PORT=auto([[:space:]]|$)' "$env_file"; then
   exit 1
 fi
 
-docker compose --env-file "$env_file" up -d postgres
+docker compose --env-file "$env_file" up -d postgres redis superset
 
 attempt=1
 while [[ "$attempt" -le 30 ]]; do
   health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-postgres 2>/dev/null || true)"
-  if [[ "$health" == "healthy" ]] && docker compose --env-file "$env_file" exec -T postgres \
+  superset_health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-superset 2>/dev/null || true)"
+  if [[ "$health" == "healthy" ]] && [[ "$superset_health" == "healthy" ]] && docker compose --env-file "$env_file" exec -T postgres \
     sh -c 'pg_isready --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' >/dev/null 2>&1; then
     set -a
     # shellcheck disable=SC1090

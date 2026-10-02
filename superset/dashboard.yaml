@@ -1,0 +1,11 @@
+version: 1
+dashboard:
+  dashboard_title: "CaféNorte — 4 respuestas"
+  slug: cafenorte-4-respuestas
+  data_scope: analytics_only
+  charts:
+    - P1: analytics.mart_inventory_turnover_top10
+    - P2: analytics.mart_stockouts_over_3_days
+    - P3: analytics.mart_monthly_channel_growth
+    - P4: analytics.mart_negative_margin_products
+    - Reconciliación: analytics.mart_source_reconciliation

@@ -16,6 +16,7 @@ env_value() {
 }
 
 postgres_port="$(env_value POSTGRES_PORT)"
+superset_port="$(env_value SUPERSET_PORT)"
 health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-postgres 2>/dev/null || true)"
 if [[ -z "$health" ]]; then
   health="not-created"
@@ -24,7 +25,10 @@ fi
 printf 'PostgreSQL host: 127.0.0.1\n'
 printf 'PostgreSQL port: %s\n' "$postgres_port"
 printf 'Health: %s\n' "$health"
+printf 'Superset URL: http://127.0.0.1:%s\n' "$superset_port"
+printf 'Superset users: admin, director, gerente_t001 (passwords are in .env)\n'
 docker compose --env-file "$env_file" ps postgres
+docker compose --env-file "$env_file" ps redis superset
 
 if [[ "$health" == "healthy" ]]; then
   docker compose --env-file "$env_file" exec -T postgres sh -c \

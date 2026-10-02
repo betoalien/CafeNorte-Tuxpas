@@ -37,6 +37,11 @@ ORDER BY rolname;
 SELECT datname FROM pg_database WHERE datname = 'superset_meta';
 SQL
 
+superset_health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-superset 2>/dev/null || true)"
+redis_health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-redis 2>/dev/null || true)"
+[[ "$superset_health" == "healthy" ]] || { echo "Superset is not healthy." >&2; exit 1; }
+[[ "$redis_health" == "healthy" ]] || { echo "Redis is not healthy." >&2; exit 1; }
+
 set -a
 # shellcheck disable=SC1090
 . "$env_file"
@@ -45,3 +50,4 @@ uv run pytest
 uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt
 uv run python -m cafenorte.export_answers
 uv run ruff check scripts/profile_sources.py
+uv run python superset/test_rls.py

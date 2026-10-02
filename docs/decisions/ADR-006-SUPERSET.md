@@ -12,6 +12,10 @@ El reto necesita dashboards reproducibles, control por tienda y una experiencia 
 
 Usar Apache Superset como visor principal. Docker Compose local incluye Superset y Redis; los metadatos se guardan en la base separada `superset_meta` dentro de la misma instancia PostgreSQL. Los dashboards y roles se versionan, y el arranque crea credenciales iniciales desde secretos externos.
 
+Las versiones locales quedan fijadas en `apache/superset:4.1.1` y `redis:7.2.7-alpine3.21`; ambas
+son imágenes multi-arquitectura con `linux/arm64`. `start.sh` genera el puerto de Superset, la
+clave secreta y las contraseñas demo en `.env` con `openssl rand`.
+
 - **Local:** Superset conecta mediante `psycopg2` al schema PostgreSQL `analytics` con usuario de solo lectura. RLS limita al gerente a su tienda y permite a dirección consultar todas. La demo usa autenticación local; no incorpora OAuth, Let's Encrypt ni proxy HTTPS.
 - **Producción AWS:** Superset conecta a Athena mediante PyAthena y usa Redis para caché. Se habilitan OAuth Google/Microsoft, HTTPS/443 con Let's Encrypt y RLS equivalente.
 

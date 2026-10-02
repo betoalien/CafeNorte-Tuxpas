@@ -219,3 +219,14 @@ magnitud, no solo estructura.
 
 **Corrección:** el inventario promedio de red ahora suma el promedio válido de cada combinación
 producto-tienda; la cobertura conserva la proporción de snapshots no `N/A`.
+
+### Prompt 14: Bloque D1, Superset local con Redis y RLS
+
+**Decisiones:** Superset consume exclusivamente `analytics` mediante `superset_ro`; `superset_meta`
+guarda metadatos y Redis cachea resultados. Los dashboards, roles y reglas RLS se versionan en
+`superset/` y el bootstrap es idempotente. P1 es un indicador de red sin filtro de tienda; el rol
+`gerente_t001` se restringe a T001 en P2/P3/P4.
+
+**Verificación:** se fijaron imágenes multi-arquitectura con soporte `linux/arm64`; las credenciales
+y puertos se generan fuera del repositorio. La prueba de validación usa el login de la API de
+Superset y confirma la presencia del dashboard para los roles demo.

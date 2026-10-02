@@ -5,9 +5,9 @@
 ### start.sh
 
 Valida prerrequisitos, levanta PostgreSQL y ejecuta la corrida completa Bronze → Silver. La carga
-usa Polars, Pydantic, manifiestos SHA-256 y reemplazo transaccional de tablas Silver. Redis,
-Superset y PardoX están fuera del Bloque C. Después de Silver, `start.sh` ejecuta `dbt build` y
-exporta las cuatro respuestas a `artifacts/evidence/answers/`.
+usa Polars, Pydantic, manifiestos SHA-256 y reemplazo transaccional de tablas Silver. PardoX
+permanece fuera del Bloque D1. Después de Silver, `start.sh` ejecuta `dbt build`, levanta
+Redis/Superset e importa el dashboard versionado de `superset/`, y exporta las cuatro respuestas.
 
 ### stop.sh
 
@@ -19,7 +19,8 @@ Compone `stop.sh` y `start.sh`; no replica sus comandos.
 
 ### reset.sh
 
-Elimina solo recursos reproducibles del proyecto. Requiere `--yes`, muestra objetivos exactos y preserva `datos/`, documentos y `AI_LOG.md`.
+Elimina solo recursos reproducibles del proyecto, incluidos los volúmenes de PostgreSQL, Redis y
+metadatos de Superset. Requiere `--yes`, muestra objetivos exactos y preserva `datos/`, documentos y `AI_LOG.md`.
 
 ### validate.sh
 
@@ -48,7 +49,14 @@ Ese comando regenera `artifacts/evidence/profiling.md`; `validate.sh` no debe mo
 ### status.sh
 
 Muestra contenedores, healthcheck, último `run_id`, conteos de ejecución, filas Silver, versión dbt
-y filas de Gold.
+y filas de Gold, URL de Superset y usuarios demo sin mostrar contraseñas.
+
+### Superset
+
+Superset usa `superset_meta` para metadatos, Redis para caché y `superset_ro` para consultar solo
+`analytics`. Los artefactos declarativos y el bootstrap idempotente viven en `superset/`. Las
+versiones fijadas son `apache/superset:4.1.1` y `redis:7.2.7-alpine3.21`; ambas imágenes incluyen
+`linux/arm64`.
 
 ## Fallos
 

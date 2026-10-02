@@ -2,8 +2,8 @@
 
 ## Estado
 
-Bloques A, A-1, B y C implementados: perfilado, Bronze → Silver, dbt → Gold y las cuatro
-respuestas reproducibles. PardoX, Redis y Superset permanecen pendientes.
+Bloques A, A-1, B, C y D1 implementados: perfilado, Bronze → Silver, dbt → Gold, las cuatro
+respuestas reproducibles y Superset local con Redis/RLS. PardoX permanece pendiente.
 
 ## Objetivo
 
@@ -40,6 +40,14 @@ Polars y PardoX realizan la preparación columnar. PostgreSQL persiste y sirve l
 - **Silver:** entidades técnicamente normalizadas y PII excluida.
 - **Gold:** dimensiones, hechos, métricas y marts certificados por dbt.
 - **Audit:** cuarentena, reconciliaciones, calidad y ejecuciones.
+
+## Ver los dashboards
+
+Después de `./scripts/start.sh`, abre `http://127.0.0.1:<SUPERSET_PORT>` usando el puerto que
+reporta `./scripts/status.sh`. El dashboard es **CaféNorte — 4 respuestas**. Los usuarios demo son
+`admin`, `director` y `gerente_t001`; sus contraseñas se generan al crear `.env` y permanecen solo
+en `.env` (permisos 600). `gerente_t001` solo ve T001 en P2/P3/P4; P1 es un indicador de red y lo
+ven todos los roles.
 
 ## Documentación
 

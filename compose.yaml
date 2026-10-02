@@ -25,6 +25,56 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  redis:
+    container_name: cafenorte-redis
+    image: redis:7.2.7-alpine3.21
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  superset:
+    container_name: cafenorte-superset
+    image: cafenorte-superset:4.1.1
+    build:
+      context: ./superset
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?SUPERSET_SECRET_KEY is required}
+      SUPERSET_META_PASSWORD: ${SUPERSET_META_PASSWORD:?SUPERSET_META_PASSWORD is required}
+      SUPERSET_RO_PASSWORD: ${SUPERSET_RO_PASSWORD:?SUPERSET_RO_PASSWORD is required}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD is required}
+      GERENTE_T001_PASSWORD: ${GERENTE_T001_PASSWORD:?GERENTE_T001_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      SUPERSET_META_DB: postgresql+psycopg2://superset_meta:${SUPERSET_META_PASSWORD}@postgres:5432/superset_meta
+      SUPERSET_ANALYTICS_DB: postgresql+psycopg2://superset_ro:${SUPERSET_RO_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "127.0.0.1:${SUPERSET_PORT:-8088}:8088"
+    volumes:
+      - ./superset:/app/cafenorte_superset:ro
+    command: ["/bin/bash", "/app/cafenorte_superset/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8088/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     name: cafenorte_postgres_data
+  redis_data:
+    name: cafenorte_redis_data

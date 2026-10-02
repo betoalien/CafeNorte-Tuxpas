@@ -7,6 +7,8 @@ cd "$project_root"
 echo "Reset targets:"
 echo "  - Docker Compose containers and network for project cafenorte"
 echo "  - Docker volume cafenorte_postgres_data"
+echo "  - Docker volume cafenorte_redis_data"
+echo "  - Superset metadata and Redis cache"
 echo "Preserved: datos/, docs/, AI_LOG.md, source code, and evidence."
 
 if [[ "${1:-}" != "--yes" ]]; then

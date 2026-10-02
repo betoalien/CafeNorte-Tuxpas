@@ -1,0 +1,11 @@
+version: 1
+rules:
+  - role: gerente_t001
+    tables:
+      - analytics.mart_stockouts_over_3_days
+      - analytics.mart_monthly_channel_growth
+      - analytics.mart_negative_margin_products
+    clause: "tienda_id = 'T001'"
+  - role: director
+    tables: all_analytics
+    clause: ""
