@@ -12,6 +12,8 @@ class EngineReport:
     rows: dict[str, int] = field(default_factory=dict)
     output_bytes: int = 0
     output_path: str | None = None
+    stage_seconds: dict[str, dict[str, float]] = field(default_factory=dict)
+    source_rows: dict[str, int] = field(default_factory=dict)
 
 
 def engine_report(engine: str, data_dir: Path) -> EngineReport:

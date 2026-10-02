@@ -10,8 +10,9 @@ respuestas reproducibles y Superset local con Redis/RLS. PardoX permanece pendie
 PardoX es un motor DataFrame con núcleo en Rust, publicado en [pardox.io](https://www.pardox.io/).
 En este reto es una alternativa verificada, nunca el camino crítico: demuestra paridad con Polars y
 registra tiempos sobre las mismas fuentes. La versión fijada es `0.3.4`; su API documentada permite
-leer CSV, mientras JSON anidado, Parquet y la preparación tipada de Silver usan fallback explícito a
-Polars. Ejecuta `uv run python -m cafenorte.ingest --engine pardox` y
+leer CSV y Parquet, hacer cast, validar contratos, convertir registros y escribir `.prdx`, mientras
+el JSON anidado de inventario usa el único fallback explícito a Polars. Ejecuta
+`uv run python -m cafenorte.ingest --engine pardox` y
 `uv run python -m cafenorte.benchmark` para generar evidencia.
 
 <!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->

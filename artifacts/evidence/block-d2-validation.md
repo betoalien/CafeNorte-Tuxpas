@@ -18,16 +18,18 @@ uv run pytest tests/test_engines.py -q
 ```
 
 La corrida `uv run python -m cafenorte.ingest --engine pardox --force` genero las mismas filas,
-sumas y agregados comprobados en `silver_pardox`; `silver` no se reemplaza. La salida registro:
+suma y agregados comprobados en `silver_pardox`; `silver` no se reemplaza. La salida registro:
 
 ```text
 engine=pardox
-engine_fallback=polars para sales (conversion tipada), inventory.json (JSON anidado),
-ecommerce_orders.parquet (Parquet) y la preparacion Silver de exchange_rates.csv
+engine_fallback=polars únicamente para inventory.json (JSON anidado)
 ```
 
-Estas limitaciones corresponden a capacidades no documentadas por el SDK publicado y no se
-simularon.
+PardoX 0.3.4 ejecutó `read_csv`, `read_parquet`, `cast`, `validate_contract`, `to_dict` y
+`to_prdx`; el lector JSON anidado es el único fallback real.
+
+La prueba negativa altera temporalmente un monto en `silver_pardox.pos_sales`, confirma que la
+comparación falla y restaura el valor original.
 
 ## Benchmark
 
@@ -35,7 +37,9 @@ simularon.
 uv run python -m cafenorte.benchmark
 ```
 
-Se ejecutaron una corrida fria y cinco calientes por motor, alternando el orden. El resumen
+Se ejecutaron una corrida fria y cinco calientes por motor en subprocess, alternando el orden.
+Cada etapa con filas pasa la guarda de 1 ms y las filas coinciden con sales=86,490,
+ecommerce=9,947 y exchange_rates=730. El resumen
 versionado esta en `artifacts/evidence/benchmark.md`; los JSONL detallados quedan en `logs/` y
 estan ignorados por Git. El dataset es pequeno (86k filas), por lo que los tiempos no se
 generalizan. El escalamiento x10/x100 queda documentado como prueba opcional futura mediante

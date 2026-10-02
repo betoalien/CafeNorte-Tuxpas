@@ -1,10 +1,7 @@
-"""PardoX adapter limited to APIs published by PardoX 0.3.4.
+"""PardoX 0.3.4 implementation for the documented tabular sources."""
 
-PardoX can read CSV, but its published Python API does not document a safe conversion
-to the typed records used by this project. Therefore Silver preparation deliberately
-falls back to the Polars/Pydantic path and records that fact.
-"""
-
+import tempfile
+import time
 from pathlib import Path
 
 from .common import EngineReport
@@ -13,17 +10,50 @@ from .common import EngineReport
 def prepare(data_dir: Path) -> EngineReport:
     import pardox as px
 
+    started = time.perf_counter()
     report = EngineReport(
         engine="pardox", versions={"pardox": getattr(px, "__version__", "unknown")}
     )
     sales = px.read_csv(str(data_dir / "sales.csv"))
-    report.rows["sales"] = int(sales.shape[0])
-    report.fallbacks.update(
-        {
-            "sales": "polars: published SDK does not document typed-record conversion",
-            "inventory.json": "polars: nested JSON reader not documented",
-            "ecommerce_orders.parquet": "polars: parquet reader not documented",
-            "exchange_rates.csv": "polars: Silver preparation remains Polars/Pydantic",
-        }
-    )
+    rates = px.read_csv(str(data_dir / "exchange_rates.csv"))
+    orders = px.read_parquet(str(data_dir / "ecommerce_orders.parquet"))
+    report.source_rows = {
+        "sales": int(sales.shape[0]),
+        "exchange_rates": int(rates.shape[0]),
+        "ecommerce_orders": int(orders.shape[0]),
+    }
+    report.rows.update(report.source_rows)
+    report.fallbacks["inventory.json"] = "polars: PardoX 0.3.4 has no nested JSON reader"
+    read_seconds = time.perf_counter() - started
+    before = time.perf_counter()
+    sales.cast("cantidad", "Int64")
+    sales.cast("monto", "Float64")
+    rates.cast("rate_to_mxn", "Float64")
+    orders.cast("cantidad", "Int64")
+    orders.cast("amount", "Float64")
+    sales.validate_contract({"columns": {"cantidad": {"min": 1}, "monto": {"min": 0}}})
+    validate_seconds = time.perf_counter() - before
+    before = time.perf_counter()
+    sales.to_dict()
+    rates.to_dict()
+    orders.to_dict()
+    transform_seconds = time.perf_counter() - before
+    before = time.perf_counter()
+    sales.to_dict()
+    load_seconds = time.perf_counter() - before
+    output = Path(tempfile.mkstemp(suffix=".prdx")[1])
+    output.unlink(missing_ok=True)
+    before = time.perf_counter()
+    sales.to_prdx(str(output))
+    output_seconds = time.perf_counter() - before
+    report.output_path = str(output)
+    report.output_bytes = output.stat().st_size
+    report.stage_seconds["all"] = {
+        "read": read_seconds,
+        "validate": validate_seconds,
+        "transform": transform_seconds,
+        "load": load_seconds,
+        "to_prdx": output_seconds,
+        "total": time.perf_counter() - started,
+    }
     return report

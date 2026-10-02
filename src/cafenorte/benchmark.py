@@ -1,90 +1,141 @@
-"""Small reproducible engine timing harness for SPEC-003."""
+"""SPEC-003 benchmark: equal work, isolated subprocesses, and sanity guards."""
 
 import json
+import os
 import platform
 import resource
 import statistics
+import subprocess
+import sys
+import tempfile
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 from .engines import pardox_engine, polars_engine
 from .ingest import DATA, ROOT
 
 
-def run_once(engine: str, cold: bool) -> list[dict]:
+def worker(engine: str, result_path: Path) -> None:
     started = time.perf_counter()
-    reader = pardox_engine.prepare if engine == "pardox" else polars_engine.prepare
-    before = time.perf_counter()
-    report = reader(DATA)
-    reading = time.perf_counter() - before
-    total = time.perf_counter() - started
-    common = {
-        "engine": engine,
-        "source": "all",
-        "peak_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
-        "rows": sum(report.rows.values()),
-        "engine_fallback": report.fallbacks,
-        "python": platform.python_version(),
-        "polars": __import__("polars").__version__,
-        "pardox": report.versions.get("pardox", "n/a"),
-        "cpu": platform.machine(),
-        "ram_mb": 0,
-        "cold": cold,
-    }
-    return [
-        {**common, "stage": "reading", "seconds": reading},
-        {**common, "stage": "total", "seconds": total},
-    ]
+    report = pardox_engine.prepare(DATA) if engine == "pardox" else polars_engine.prepare(DATA)
+    records = []
+    for stage, seconds in report.stage_seconds["all"].items():
+        records.append(
+            {
+                "engine": engine,
+                "source": "all",
+                "stage": stage,
+                "seconds": seconds,
+                "peak_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024,
+                "rows_processed": sum(report.source_rows.values()),
+                "source_rows": report.source_rows,
+                "engine_fallback": report.fallbacks,
+                "python": platform.python_version(),
+                "polars": __import__("polars").__version__,
+                "pardox": report.versions.get("pardox", "n/a"),
+                "cpu": platform.machine(),
+                "cold": os.environ.get("CAFENORTE_BENCHMARK_COLD") == "1",
+                "output_bytes": report.output_bytes,
+                "output_format": "prdx" if engine == "pardox" else "csv",
+            }
+        )
+    records.append(
+        {"engine": engine, "stage": "process_total", "seconds": time.perf_counter() - started}
+    )
+    result_path.write_text(json.dumps(records), encoding="utf-8")
+
+
+def run_subprocess(engine: str, cold: bool) -> list[dict]:
+    with tempfile.NamedTemporaryFile(suffix=".json") as result:
+        env = {**os.environ, "CAFENORTE_BENCHMARK_COLD": "1" if cold else "0"}
+        subprocess.run(
+            [sys.executable, "-m", "cafenorte.benchmark", "--worker", engine, result.name],
+            check=True,
+            env=env,
+            stdout=subprocess.DEVNULL,
+        )
+        return json.loads(Path(result.name).read_text(encoding="utf-8"))
 
 
 def main() -> None:
+    if len(sys.argv) == 4 and sys.argv[1] == "--worker":
+        worker(sys.argv[2], Path(sys.argv[3]))
+        return
     records: list[dict] = []
     for index in range(6):
-        for engine in (
-            ("polars", "pardox")
-            if index == 0
-            else (("polars", "pardox") if index % 2 else ("pardox", "polars"))
-        ):
-            records.extend(run_once(engine, cold=index == 0))
+        engines = ("polars", "pardox") if index % 2 == 0 else ("pardox", "polars")
+        for engine in engines:
+            records.extend(run_subprocess(engine, cold=index == 0))
+    expected = {"sales": 86490, "ecommerce_orders": 9947, "exchange_rates": 730}
+    for record in records:
+        for source, expected_rows in expected.items():
+            if (
+                source in record.get("source_rows", {})
+                and record["source_rows"][source] != expected_rows
+            ):
+                raise RuntimeError(f"Benchmark row guard failed: {record}")
+        if record.get("stage") in {
+            "read",
+            "validate",
+            "transform",
+            "load",
+            "total",
+            "to_prdx",
+        } and (record["rows_processed"] <= 0 or record["seconds"] < 0.001):
+            raise RuntimeError(f"Benchmark sanity guard failed: {record}")
     logs = ROOT / "logs"
     logs.mkdir(exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     (logs / f"benchmark_{stamp}.jsonl").write_text(
-        "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
-        encoding="utf-8",
+        "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
     )
     lines = [
         "# Benchmark PardoX vs Polars",
         "",
-        "| Engine | Stage | Median s | Min s | Difference vs Polars |",
-        "|---|---:|---:|---:|---:|",
+        "| Engine | Stage | Median s | Min s | Difference vs Polars | Peak MB |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
-    polars_medians = {
-        stage: statistics.median(
-            [r["seconds"] for r in records if r["engine"] == "polars" and r["stage"] == stage]
-        )
-        for stage in ("reading", "total")
-    }
-    for engine in ("polars", "pardox"):
-        for stage in ("reading", "total"):
+    for stage in ("read", "validate", "transform", "load", "to_prdx", "total"):
+        medians = {}
+        for engine in ("polars", "pardox"):
             values = [
-                r["seconds"] for r in records if r["engine"] == engine and r["stage"] == stage
+                r["seconds"]
+                for r in records
+                if r.get("engine") == engine and r.get("stage") == stage
             ]
-            median = statistics.median(values)
-            difference = (median / polars_medians[stage] - 1) * 100 if polars_medians[stage] else 0
-            lines.append(
-                f"| {engine} | {stage} | {median:.6f} | {min(values):.6f} | {difference:+.1f}% |"
+            if not values:
+                continue
+            medians[engine] = statistics.median(values)
+            difference = (medians[engine] / medians.get("polars", medians[engine]) - 1) * 100
+            peak = max(
+                r["peak_mb"]
+                for r in records
+                if r.get("engine") == engine and r.get("stage") == stage
             )
+            lines.append(
+                f"| {engine} | {stage} | {medians[engine]:.6f} | {min(values):.6f} | "
+                f"{difference:+.1f}% | {peak:.1f} |"
+            )
+    polars_size = max(
+        r["output_bytes"] for r in records if r.get("engine") == "polars" and "output_bytes" in r
+    )
+    pardox_size = max(
+        r["output_bytes"] for r in records if r.get("engine") == "pardox" and "output_bytes" in r
+    )
     lines += [
         "",
-        "PardoX fue más lento en esta corrida pequeña; no se generaliza a cargas mayores.",
-        "Escalamiento opcional: generar sales x10 y x100 en un directorio temporal con "
-        "CAFENORTE_DATA_DIR, sin modificar datos/.",
+        "Guardas: filas esperadas sales=86,490, ecommerce=9,947, "
+        "exchange_rates=730; no se publican etapas sub-ms con filas.",
+        "El dataset de 86k filas es pequeño y no generaliza. Escala opcional: sales x10/x100 en "
+        "un directorio temporal usando CAFENORTE_DATA_DIR, sin tocar datos/.",
+        "Salida serializada: PardoX escribe .prdx y Polars escribe CSV equivalente; el tamaño "
+        "exacto queda en cada línea JSONL de logs/.",
+        f"Tamaño medido: CSV Polars={polars_size} bytes; PRDX PardoX={pardox_size} bytes.",
     ]
     (logs / "benchmark_latest.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    evidence = ROOT / "artifacts/evidence/benchmark.md"
-    evidence.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(evidence)
+    (ROOT / "artifacts/evidence/benchmark.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("benchmark completed")
 
 
 if __name__ == "__main__":

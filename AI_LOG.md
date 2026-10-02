@@ -269,3 +269,16 @@ Polars sigue siendo el oráculo y la carga incremental no se modifica.
 **Limitación:** la ruta PardoX no se promociona a Silver ni se simula como equivalente mientras la
 API no documente esas operaciones. El benchmark reporta el tamaño pequeño del dataset y no
 generaliza sus tiempos.
+
+### Prompt 19: Bloque D2-1, rehacer PardoX
+
+**Caso de error:** D2 comparaba PardoX leyendo CSV contra un `polars_engine.prepare()` vacío,
+marcaba cuatro fuentes como fallback y afirmaba limitaciones que sí existen en PardoX `0.3.4`.
+**Lección:** un benchmark debe ejecutar el mismo trabajo y las limitaciones deben verificarse en
+los docstrings de la versión instalada, no inferirse.
+
+**Corrección:** ambos motores leen, validan, transforman y materializan las fuentes tabulares;
+PardoX usa `read_csv`, `read_parquet`, `cast`, `validate_contract`, `to_dict` y `to_prdx`. Solo
+`inventory.json` usa fallback Polars porque el lector JSON anidado no existe en la API instalada.
+El benchmark corre cada motor en subprocess, mide etapas y memoria, alterna una corrida fría y
+cinco calientes, y falla si una etapa con filas reporta menos de 1 ms.
