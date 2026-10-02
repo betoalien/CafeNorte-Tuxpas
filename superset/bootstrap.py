@@ -204,9 +204,9 @@ def main():
             chart(
                 "P1 · Rotación top 10",
                 tables["mart_inventory_turnover_top10"],
-                "bar",
-                '{"groupby": ["product_id"], "metrics": ["inventory_turnover_ratio"], '
-                '"row_limit": 10}',
+                "echarts_bar",
+                '{"x_axis": "product_id", "metrics": ["inventory_turnover_ratio"], '
+                '"row_limit": 10, "order_desc": true}',
             ),
             chart(
                 "P2 · Stockouts > 3 días",
@@ -218,13 +218,15 @@ def main():
                 "P3 · Crecimiento por canal",
                 tables["mart_monthly_channel_growth"],
                 "echarts_timeseries",
-                '{"groupby": ["month_start", "channel"], "metrics": ["sales_mxn"]}',
+                '{"granularity_sqla": "month_start", "time_grain_sqla": "P1M", '
+                '"groupby": ["channel"], "metrics": ["sales_mxn"]}',
             ),
             chart(
                 "P3 · Físico vs e-commerce",
                 tables["mart_monthly_channel_type_growth"],
                 "echarts_timeseries",
-                '{"groupby": ["month_start", "channel_type"], "metrics": ["sales_mxn"]}',
+                '{"granularity_sqla": "month_start", "time_grain_sqla": "P1M", '
+                '"groupby": ["channel_type"], "metrics": ["sales_mxn"]}',
             ),
             chart(
                 "P4 · Margen negativo",
