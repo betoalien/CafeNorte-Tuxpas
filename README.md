@@ -28,7 +28,7 @@ aparece durante 63 días: se usa con `suspected_truncation`. El ERP trae 15 ciud
 el relato menciona CDMX, Bajío, Monterrey, Guadalajara y la frontera, por lo que las
 siete ciudades no mencionadas y las regiones inconsistentes se reportan sin corregirlas.
 La PII de Shopify se excluye de Silver y Gold. La hora POS se interpreta como hora
-local de la tienda. Las interpretaciones largas viven en [`profiling.md`](profiling.md)
+local de la tienda. Las interpretaciones largas viven en [`profiling.md`](artifacts/evidence/profiling.md)
 y [`docs/BUSINESS_METRICS.md`](docs/BUSINESS_METRICS.md).
 
 ## Las respuestas

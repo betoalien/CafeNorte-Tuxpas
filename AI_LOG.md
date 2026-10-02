@@ -502,3 +502,15 @@ incluyendo la regla de plataforma para PardoX. La primera corrida real también 
 serializar `anchor_date` como JSON sin comillas rompía dbt; se alineó con el quoting del Bash
 histórico. La lección es que una migración de orquestación debe probar comportamiento y orden,
 no solo que exista el nuevo entry point.
+
+### D3-8: alineación con el reto original
+
+Al releer el PDF detecté que P3 pedía físico contra e-commerce, mientras la salida solo
+mostraba tiendas individuales y ONLINE. Añadí el mart agregado por `dim_channel.channel_type`,
+conservé el drill-down, agregué pruebas de suma y regeneré answers y Superset. También reescribí
+la entrega como narrativa del reto, separé la guía operativa y alineé la propuesta AWS con la
+sección 2.2 del PDF.
+
+El caso de error fue tratar el detalle por tienda como respuesta suficiente para P3. El cotejo
+literal con la pregunta del PDF lo detectó antes del cierre; la corrección fue agregar el
+agregado físico/e-commerce sin perder la visibilidad por tienda.
