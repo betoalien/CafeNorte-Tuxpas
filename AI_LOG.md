@@ -186,6 +186,19 @@ crear schemas con `pipeline` y falló por permisos; se eliminó esa creación re
 init de PostgreSQL es su propietario. La comparación de sumas en pytest se ajustó a `Decimal`,
 sin alterar datos ni cifras esperadas.
 
+### Prompt 12: Bloque C dbt → Gold
+
+**Decisiones:** dbt es el único dueño de conciliación, FX, costo temporal y métricas. Staging filtra
+la última corrida exitosa de `audit.run_log`; intermediate calcula identidad, tasa y costo; marts
+materializa dimensiones, hechos, las cuatro respuestas y reconciliación. P1 usa solo POS para
+unidades vendidas; P2 usa el trimestre calendario 2026-01-01—2026-03-31; e-commerce es `ONLINE`.
+
+**Errores reales corregidos:** el primer build pasó técnicamente pero produjo P1 vacío porque la
+extracción de `product_number` no contemplaba el sufijo `-A/-B` de los SKU ERP. El profiling ya
+demostraba el patrón, así que se corrigió la extracción en Silver y se verificaron las seis cifras
+de identidad contra profiling. También falló un test CFDI por referir `cantidad` en staging cuando
+la columna se llama `quantity`; se corrigió el test y el build terminó sin skips ni errores.
+
 ### Prompt 11: Bloque B-1, correcciones de evidencia y controles
 
 **Decisión:** los hashes se calculan antes de leer cada fuente y después de `load()`; una diferencia

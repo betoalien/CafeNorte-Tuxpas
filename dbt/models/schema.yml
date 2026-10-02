@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: stg_pos_sales
+    columns:
+      - name: tipo_comprobante
+        tests:
+          - accepted_values:
+              values: ['I', 'E', 'P', 'N', 'T']
+  - name: stg_ecommerce_orders
+    columns:
+      - name: currency
+        tests:
+          - accepted_values:
+              values: ['MXN', 'USD', 'EUR']
+  - name: int_product_identity
+    columns:
+      - name: match_method
+        tests:
+          - accepted_values:
+              values: ['explicit', 'product_number', 'product_number_null_erp', 'unmatched']
+  - name: fct_sales
+    columns:
+      - name: sale_key
+        tests: [not_null, unique]
+      - name: channel
+        tests:
+          - accepted_values:
+              values: ['ONLINE', 'T001', 'T002', 'T003', 'T004', 'T005', 'T006', 'T007', 'T008', 'T009', 'T010', 'T011', 'T012', 'T013', 'T014', 'T015', 'T016', 'T017', 'T018', 'T019', 'T020', 'T021', 'T022', 'T023', 'T024', 'T025', 'T026', 'T027', 'T028', 'T029', 'T030', 'T031', 'T032', 'T033', 'T034', 'T035', 'T036', 'T037', 'T038', 'T039', 'T040']
+  - name: fct_inventory_daily
+    columns:
+      - name: fecha
+        tests: [not_null]
+      - name: stock_quantity
+        tests: []
+  - name: mart_inventory_turnover_top10
+    columns:
+      - name: product_id
+        tests: [not_null]
+  - name: mart_stockouts_over_3_days
+    columns:
+      - name: tienda_id
+        tests: [not_null]
+  - name: mart_monthly_channel_growth
+    columns:
+      - name: channel
+        tests: [not_null]
+  - name: mart_negative_margin_products
+    columns:
+      - name: product_id
+        tests: [not_null]

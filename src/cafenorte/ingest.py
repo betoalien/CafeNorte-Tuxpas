@@ -50,7 +50,7 @@ def now() -> datetime:
 def product_number(value: str | None) -> str | None:
     if not value:
         return None
-    match = re.search(r"(\d{3})$", value)
+    match = re.search(r"(\d{3})(?:-[A-Za-z])?$", value)
     return match.group(1) if match else None
 
 
@@ -200,6 +200,8 @@ def load(
     manifests: list[Manifest],
     quarantines: list[QuarantineRecord],
     data: dict[str, Any],
+    source_paths: list[Path],
+    hashes_before: dict[Path, str],
 ) -> None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(DDL)
@@ -235,6 +237,13 @@ def load(
         insert_rows(
             cur, "INSERT INTO silver.exchange_rates VALUES (%s,%s,%s,%s,%s,%s)", data["rates"]
         )
+        hashes_after = {path: sha256(path) for path in source_paths}
+        changed = [path for path in source_paths if hashes_before[path] != hashes_after[path]]
+        if changed:
+            message = "Source changed during ingestion: " + ", ".join(str(path) for path in changed)
+            raise RuntimeError(message)
+        for manifest, path in zip(manifests, source_paths, strict=True):
+            manifest.sha256_after = hashes_after[path]
         insert_rows(
             cur,
             "INSERT INTO audit.quarantine "
@@ -527,22 +536,9 @@ def _run(run_id: UUID, started: datetime) -> None:
         manifests,
         q_sales + q_stores + q_mappings + q_products + q_snapshots + q_orders + q_rates,
         data,
+        paths,
+        hashes_before,
     )
-    hashes_after = {path: sha256(path) for path in paths}
-    changed = [path for path in paths if hashes_before[path] != hashes_after[path]]
-    for manifest, path in zip(manifests, paths, strict=True):
-        manifest.sha256_after = hashes_after[path]
-    with connect() as conn, conn.cursor() as cur:
-        for manifest in manifests:
-            cur.execute(
-                "UPDATE audit.ingestion_manifest SET sha256_after = %s "
-                "WHERE run_id = %s AND source_file = %s",
-                (manifest.sha256_after, manifest.run_id, manifest.source_file),
-            )
-    if changed:
-        message = "Source changed during ingestion: " + ", ".join(str(path) for path in changed)
-        update_run_status(run_id, "failed", message)
-        raise RuntimeError(message)
     payload = {"run_id": str(run_id), "manifests": [m.model_dump(mode="json") for m in manifests]}
     (MANIFEST_DIR / f"{run_id}.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

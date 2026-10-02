@@ -42,4 +42,6 @@ set -a
 . "$env_file"
 set +a
 uv run pytest
+uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt
+uv run python -m cafenorte.export_answers
 uv run ruff check scripts/profile_sources.py

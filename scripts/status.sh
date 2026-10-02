@@ -42,4 +42,18 @@ FROM (
 ) counts
 ORDER BY table_name;
 SQL
+  if command -v uv >/dev/null 2>&1; then
+    uv run dbt --version | head -1
+  fi
+  docker compose --env-file "$env_file" exec -T postgres sh -c \
+    'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'
+SELECT table_name, row_count
+FROM (
+  SELECT 'analytics.mart_inventory_turnover_top10' AS table_name, count(*) AS row_count FROM analytics.mart_inventory_turnover_top10
+  UNION ALL SELECT 'analytics.mart_stockouts_over_3_days', count(*) FROM analytics.mart_stockouts_over_3_days
+  UNION ALL SELECT 'analytics.mart_monthly_channel_growth', count(*) FROM analytics.mart_monthly_channel_growth
+  UNION ALL SELECT 'analytics.mart_negative_margin_products', count(*) FROM analytics.mart_negative_margin_products
+  UNION ALL SELECT 'analytics.mart_source_reconciliation', count(*) FROM analytics.mart_source_reconciliation
+) gold_counts ORDER BY table_name;
+SQL
 fi

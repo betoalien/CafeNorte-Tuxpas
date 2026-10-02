@@ -25,7 +25,7 @@ inventory_turnover_ratio = units_sold / average_valid_inventory_units
 Una tienda se lista si al menos uno de sus SKU presenta una secuencia de más de tres días
 calendario consecutivos con stock igual a cero.
 
-- Ventana: último trimestre disponible, anclado en 2026-03-31.
+- Ventana: trimestre calendario 2026-01-01 a 2026-03-31, anclada en 2026-03-31.
 - `N/A` rompe la continuidad y no cuenta como cero.
 - La salida conserva tienda, SKU, fecha inicial, fecha final y número de días.
 
@@ -88,8 +88,9 @@ fija además estas reglas de semántica:
 4. Las dimensiones de tienda proceden de `tiendas_info`; las ciudades/regiones inesperadas se
    publican como discrepancia de calidad.
 5. FX usa la tasa del día y conserva EUR=22.0 con `fx_quality_flag`.
-6. P2 lista la tienda por cualquier SKU con secuencia >3 días en cero y entrega su detalle; `N/A`
-   rompe la secuencia.
+6. P2 usa el trimestre calendario 2026-01-01—2026-03-31; lista la tienda por cualquier SKU con
+   secuencia >3 días en cero, recorta rachas iniciadas antes de la ventana y marca
+   `starts_before_window`; `N/A` y días faltantes rompen la secuencia.
 7. P4 usa tienda para POS y canal `ONLINE` para e-commerce.
 8. Toda ventana se ancla en 2026-03-31; P1 cubre 2025-10-01—2026-03-31 y MoM 2025-04 es `null`.
 9. `analytics.mart_source_reconciliation` explicará las diferencias entre las tres fuentes.

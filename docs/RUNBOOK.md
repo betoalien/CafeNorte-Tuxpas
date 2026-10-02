@@ -6,7 +6,8 @@
 
 Valida prerrequisitos, levanta PostgreSQL y ejecuta la corrida completa Bronze → Silver. La carga
 usa Polars, Pydantic, manifiestos SHA-256 y reemplazo transaccional de tablas Silver. Redis,
-Superset, dbt y PardoX están fuera del Bloque B.
+Superset y PardoX están fuera del Bloque C. Después de Silver, `start.sh` ejecuta `dbt build` y
+exporta las cuatro respuestas a `artifacts/evidence/answers/`.
 
 ### stop.sh
 
@@ -29,6 +30,13 @@ La ingestión directa se puede repetir con `uv run python -m cafenorte.ingest`; 
 un `run_id`, reemplaza Silver dentro de una transacción y deja su manifiesto en
 `artifacts/manifests/<run_id>.json` y `audit.ingestion_manifest`.
 
+### dbt
+
+`profiles.yml` vive en `dbt/` y solo lee variables de entorno. `dbt build` crea staging sobre
+Silver, intermediate y marts en `analytics`; guarda `manifest.json` y `run_results.json` en
+`artifacts/evidence/dbt/` (ruta `../artifacts/evidence/dbt` relativa al proyecto dbt). Las tablas
+analíticas consumen únicamente la última corrida exitosa.
+
 El perfilado reproducible se ejecuta aparte cuando cambian las fuentes o sus reglas:
 
 ```bash
@@ -39,7 +47,8 @@ Ese comando regenera `artifacts/evidence/profiling.md`; `validate.sh` no debe mo
 
 ### status.sh
 
-Muestra contenedores, healthcheck, último `run_id`, conteos de ejecución y filas Silver.
+Muestra contenedores, healthcheck, último `run_id`, conteos de ejecución, filas Silver, versión dbt
+y filas de Gold.
 
 ## Fallos
 

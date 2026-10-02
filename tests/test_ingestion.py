@@ -10,6 +10,10 @@ def query(sql: str) -> list[tuple]:
         return cur.fetchall()
 
 
+def latest_run_id() -> str:
+    return str(query("SELECT run_id FROM audit.run_log ORDER BY started_at DESC LIMIT 1")[0][0])
+
+
 def test_real_sources_and_idempotence() -> None:
     ingest.main()
     first = query(
@@ -28,7 +32,10 @@ def test_real_sources_and_idempotence() -> None:
         ) silver_counts ORDER BY table_name
         """
     )
-    first_quarantine = query("SELECT count(*) FROM audit.quarantine")[0][0]
+    first_run_id = latest_run_id()
+    first_quarantine = query(
+        "SELECT count(*) FROM audit.quarantine WHERE run_id = '" + first_run_id + "'"
+    )[0][0]
     ingest.main()
     second = query(
         """
@@ -46,7 +53,10 @@ def test_real_sources_and_idempotence() -> None:
         ) silver_counts ORDER BY table_name
         """
     )
-    second_quarantine = query("SELECT count(*) FROM audit.quarantine")[0][0]
+    second_run_id = latest_run_id()
+    second_quarantine = query(
+        "SELECT count(*) FROM audit.quarantine WHERE run_id = '" + second_run_id + "'"
+    )[0][0]
     assert first == second
     assert first_quarantine == second_quarantine
     assert first[3][1:] == (86490, 133383, Decimal("30947253.82"))

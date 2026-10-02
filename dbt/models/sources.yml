@@ -1,0 +1,58 @@
+version: 2
+
+sources:
+  - name: silver
+    schema: silver
+    description: Silver tecnico producido por cafenorte.ingest.
+    tables:
+      - name: pos_sales
+        columns:
+          - name: venta_id
+            tests: [not_null, unique]
+          - name: run_id
+            tests: [not_null]
+      - name: ecommerce_orders
+        columns:
+          - name: order_id
+            tests: [not_null, unique]
+          - name: run_id
+            tests: [not_null]
+      - name: inventory_snapshots
+        columns:
+          - name: fecha
+            tests: [not_null]
+          - name: run_id
+            tests: [not_null]
+      - name: stores
+        columns:
+          - name: tienda_id
+            tests: [not_null, unique]
+      - name: products
+        columns:
+          - name: sku_erp
+            tests: [not_null, unique]
+      - name: sku_mappings
+        columns:
+          - name: sku_pos
+            tests: [not_null, unique]
+      - name: exchange_rates
+        columns:
+          - name: fecha
+            tests: [not_null]
+          - name: currency
+            tests: [not_null]
+  - name: audit
+    schema: audit
+    tables:
+      - name: run_log
+        columns:
+          - name: run_id
+            tests: [not_null, unique]
+      - name: quarantine
+        columns:
+          - name: run_id
+            tests: [not_null]
+      - name: ingestion_manifest
+        columns:
+          - name: run_id
+            tests: [not_null]

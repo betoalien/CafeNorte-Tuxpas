@@ -36,6 +36,7 @@ postgres-data/
 dbt/**/target/
 dbt/**/logs/
 dbt/**/dbt_packages/
+dbt/.user.yml
 
 # Runtime evidence and logs
 artifacts/evidence/*
@@ -48,6 +49,14 @@ artifacts/reports/*
 !artifacts/evidence/block-a2-validation.md
 !artifacts/evidence/block-b-validation.md
 !artifacts/evidence/block-b1-validation.md
+!artifacts/evidence/block-c-validation.md
+!artifacts/evidence/answers/
+!artifacts/evidence/answers/*.csv
+!artifacts/evidence/answers/README.md
+artifacts/evidence/dbt/*
+!artifacts/evidence/dbt/
+!artifacts/evidence/dbt/manifest.json
+!artifacts/evidence/dbt/run_results.json
 artifacts/manifests/*
 !artifacts/manifests/.gitkeep
 !artifacts/manifests/.gitkeep

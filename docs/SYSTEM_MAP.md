@@ -30,7 +30,13 @@ Execution engine
 PostgreSQL silver
         |
         v
-dbt intermediate and analytics
+dbt staging (silver sources)
+        |
+        v
+dbt intermediate (identity, FX, effective cost)
+        |
+        v
+dbt analytics (dimensions, facts, four answers, reconciliation)
         |
         +--> dimensions and facts
         +--> aggregate tables or materialized views
@@ -59,7 +65,9 @@ Persiste Silver, Audit y Gold. Sirve datos a dbt y consumidores. No contiene log
 
 ### dbt
 
-Concilia identidades, aplica FX y costo temporal, construye dimensiones/hechos, define metricas, materializa agregados y ejecuta pruebas.
+Concilia identidades, aplica FX y costo temporal, construye dimensiones/hechos, define métricas,
+materializa los cuatro marts y reconciliación, exporta respuestas y ejecuta pruebas. Lee solo la
+última corrida exitosa indicada por `audit.run_log`.
 
 ### Dashboard
 
@@ -74,4 +82,3 @@ Source extracts -> S3 Bronze -> container or Glue processing -> S3 Silver
 ```
 
 PostgreSQL es el serving layer local. En AWS, Athena es la primera opcion por costo; Redshift Serverless se evalua cuando concurrencia o latencia lo justifiquen.
-

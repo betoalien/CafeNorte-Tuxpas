@@ -114,6 +114,8 @@ while [[ "$attempt" -le 30 ]]; do
     . "$env_file"
     set +a
     uv run python -m cafenorte.ingest
+    uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt
+    uv run python -m cafenorte.export_answers
     bash "$project_root/scripts/status.sh"
     exit 0
   fi

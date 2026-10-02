@@ -2,9 +2,8 @@
 
 ## Estado
 
-Bloques A, A-1 y B implementados: perfilado, contratos, harness y Bronze → Silver reproducible.
-El Bloque B conserva cuarentena, manifiestos, hashes e idempotencia; `match_method` queda para
-dbt en el Bloque C. dbt, PardoX, Gold, Redis y Superset permanecen pendientes para C/D.
+Bloques A, A-1, B y C implementados: perfilado, Bronze → Silver, dbt → Gold y las cuatro
+respuestas reproducibles. PardoX, Redis y Superset permanecen pendientes.
 
 ## Objetivo
 
@@ -167,9 +166,9 @@ misma configuración.
 ## Ejecución
 
 ```bash
-./scripts/start.sh      # genera .env, levanta PostgreSQL y ejecuta Bronze → Silver
-./scripts/status.sh     # estado, último run_id y conteos de Silver
-./scripts/validate.sh   # ShellCheck, pytest, Ruff y controles PostgreSQL
+./scripts/start.sh      # genera .env, Bronze → Silver, dbt build y exporta respuestas
+./scripts/status.sh     # estado, último run_id y conteos Silver/Gold
+./scripts/validate.sh   # ShellCheck, pytest, dbt build/test, Ruff y controles PostgreSQL
 ./scripts/restart.sh    # reinicia conservando puerto y credenciales
 ./scripts/stop.sh       # detiene los servicios
 ./scripts/reset.sh      # sin --yes solo muestra lo que borraría
