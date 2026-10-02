@@ -344,7 +344,11 @@ def start(args: argparse.Namespace) -> int:
         return 1
     os.environ.update(env)
     sync_database_roles(env)
-    result = run([sys.executable, "-m", "cafenorte.ingest"], capture=True)
+    result = run(
+        [sys.executable, "-m", "cafenorte.ingest"],
+        check=False,
+        capture=True,
+    )
     if result.returncode:
         print(
             "ERROR: no se pudo conectar con PostgreSQL durante la ingesta. "
