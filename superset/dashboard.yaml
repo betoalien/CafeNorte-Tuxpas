@@ -6,6 +6,7 @@ dashboard:
   charts:
     - P1: analytics.mart_inventory_turnover_top10
     - P2: analytics.mart_stockouts_over_3_days
-    - P3: analytics.mart_monthly_channel_growth
+    - P3 agregado: analytics.mart_monthly_channel_type_growth
+    - P3 detalle: analytics.mart_monthly_channel_growth
     - P4: analytics.mart_negative_margin_products
     - Reconciliación: analytics.mart_source_reconciliation

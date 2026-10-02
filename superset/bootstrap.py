@@ -127,6 +127,7 @@ def main():
                 "mart_inventory_turnover_top10",
                 "mart_stockouts_over_3_days",
                 "mart_monthly_channel_growth",
+                "mart_monthly_channel_type_growth",
                 "mart_negative_margin_products",
                 "mart_source_reconciliation",
             )
@@ -157,6 +158,12 @@ def main():
                 tables["mart_monthly_channel_growth"],
                 "echarts_timeseries",
                 '{"groupby": ["month_start", "channel"], "metrics": ["sales_mxn"]}',
+            ),
+            chart(
+                "P3 · Físico vs e-commerce",
+                tables["mart_monthly_channel_type_growth"],
+                "echarts_timeseries",
+                '{"groupby": ["month_start", "channel_type"], "metrics": ["sales_mxn"]}',
             ),
             chart(
                 "P4 · Margen negativo",

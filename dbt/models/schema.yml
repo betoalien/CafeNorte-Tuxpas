@@ -45,6 +45,13 @@ models:
     columns:
       - name: channel
         tests: [not_null]
+  - name: mart_monthly_channel_type_growth
+    columns:
+      - name: channel_type
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['FISICO', 'ECOMMERCE']
   - name: mart_negative_margin_products
     columns:
       - name: product_id

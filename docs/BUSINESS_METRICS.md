@@ -35,7 +35,8 @@ calendario consecutivos con stock igual a cero.
 mom_growth_pct = (current_month_sales_mxn / previous_month_sales_mxn) - 1
 ```
 
-- Canales: cada tienda POS y el canal `ONLINE` para e-commerce.
+- La serie certificada agrupa por tipo: `FISICO` suma las 40 tiendas POS y `ECOMMERCE` representa `ONLINE`; también se conserva el detalle por tienda y `ONLINE`.
+- El gerente `gerente_t001` ve únicamente `T001` en el detalle; la serie agregada es un indicador de red sin tienda y permanece visible completa.
 - Ventana: últimos doce meses, anclada en 2026-03-31.
 - Abril de 2025 produce `null` porque no existe marzo de 2025 como base comparable.
 - Una base previa igual a cero produce `null` y una razon explicita.

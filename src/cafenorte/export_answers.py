@@ -20,6 +20,10 @@ QUERIES = {
     "p3_monthly_channel_growth": (
         "select * from analytics.mart_monthly_channel_growth order by channel, month_start"
     ),
+    "p3_monthly_channel_type_growth": (
+        "select * from analytics.mart_monthly_channel_type_growth "
+        "order by channel_type, month_start"
+    ),
     "p4_negative_margin_products": (
         "select * from analytics.mart_negative_margin_products order by gross_margin_mxn"
     ),

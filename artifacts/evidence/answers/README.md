@@ -26,6 +26,14 @@ Filas exportadas: 492
 select * from analytics.mart_monthly_channel_growth order by channel, month_start
 ```
 
+## p3_monthly_channel_type_growth
+
+Filas exportadas: 24
+
+```sql
+select * from analytics.mart_monthly_channel_type_growth order by channel_type, month_start
+```
+
 ## p4_negative_margin_products
 
 Filas exportadas: 120
