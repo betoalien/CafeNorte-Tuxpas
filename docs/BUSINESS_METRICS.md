@@ -91,6 +91,6 @@ fija además estas reglas de semántica:
 6. P2 usa el trimestre calendario 2026-01-01—2026-03-31; lista la tienda por cualquier SKU con
    secuencia >3 días en cero, recorta rachas iniciadas antes de la ventana y marca
    `starts_before_window`; `N/A` y días faltantes rompen la secuencia.
-7. P4 usa tienda para POS y canal `ONLINE` para e-commerce.
-8. Toda ventana se ancla en 2026-03-31; P1 cubre 2025-10-01—2026-03-31 y MoM 2025-04 es `null`.
+7. P4 usa tienda para POS y canal `ONLINE` para e-commerce; su ventana es 2025-04-01—2026-03-31 (12 meses, alineada con P3).
+8. Toda ventana se ancla en 2026-03-31; P1 cubre 2025-10-01—2026-03-31, P4 cubre 2025-04-01—2026-03-31 y MoM 2025-04 es `null`.
 9. `analytics.mart_source_reconciliation` explicará las diferencias entre las tres fuentes.

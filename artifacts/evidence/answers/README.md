@@ -33,3 +33,5 @@ Filas exportadas: 120
 ```sql
 select * from analytics.mart_negative_margin_products order by gross_margin_mxn
 ```
+
+Nota de alcance histórico: usando todo el histórico POS disponible desde `2024-10-01` se mantienen los mismos tres productos principales; `015-D` (`ERP-PROV-MX-015-D`) presenta `-230,810 MXN`.

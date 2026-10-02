@@ -20,8 +20,8 @@ Artefactos generados por SPEC-002:
 Resultado final:
 
 ```text
-Found 22 models, 36 data tests, 10 sources
-Done. PASS=58 WARN=0 ERROR=0 SKIP=0 TOTAL=58
+Found 22 models, 38 data tests, 10 sources
+Done. PASS=60 WARN=0 ERROR=0 SKIP=0 TOTAL=60
 ```
 
 El build incluye fuentes Silver/Audit, staging, intermediate, dimensiones, hechos y marts en
@@ -52,9 +52,29 @@ Cada resultado tiene CSV y consulta SQL en `artifacts/evidence/answers/`:
 | `mart_negative_margin_products` | 120 |
 
 P1 usa únicamente POS para `units_sold`, excluye productos sin match del ranking y muestra
-`coverage`. P2 usa 2026-01-01—2026-03-31, rompe rachas con N/A/días faltantes y marca
+`coverage`. El inventario promedio es la suma de los promedios válidos por tienda y producto,
+por lo que `units_sold` e inventario están al mismo grano de red:
+
+| Producto | Rotación | Unidades | Inventario promedio de red |
+|---|---:|---:|---:|
+| 057-C | 1.362 | 652 | 478.74 |
+| 012-B | 1.226 | 645 | 525.94 |
+| 041-D | 1.201 | 629 | 523.72 |
+| 062-B | 1.189 | 659 | 554.30 |
+| 008-C | 1.152 | 606 | 526.30 |
+| 030-C | 1.111 | 624 | 561.64 |
+| 037-C | 1.103 | 661 | 599.05 |
+| 015-D | 1.074 | 735 | 684.12 |
+| 051-C | 1.025 | 634 | 618.67 |
+| 034-D | 1.024 | 658 | 642.31 |
+
+Los tests singulares `test_inventory_turnover_grain` y
+`test_inventory_turnover_expected_top3` validan magnitud y valores del top 3.
+P2 usa 2026-01-01—2026-03-31, rompe rachas con N/A/días faltantes y marca
 `starts_before_window`. P3 incluye cada tienda y `ONLINE`, con abril 2025 sin base. P4 separa
-tiendas POS y `ONLINE` y solo conserva margen total negativo.
+tiendas POS y `ONLINE`, cubre 2025-04-01—2026-03-31 y solo conserva margen total negativo.
+Con todo el histórico POS desde 2024-10-01 se mantienen los mismos tres productos principales;
+015-D presenta -230,810 MXN.
 
 ## Reconciliación
 

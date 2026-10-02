@@ -209,3 +209,13 @@ tablas Silver, y la prueba de hashes compara el manifest contra SHA-256 calculad
 **Caso de error:** las pruebas originales de inmutabilidad e idempotencia pasaban sin comprobar
 lo que afirmaban: el manifest calculaba `before` y `after` en el mismo punto, y la idempotencia no
 comparaba realmente la segunda corrida. Lección: una prueba que no puede fallar no es una prueba.
+
+### Prompt 13: Bloque C-1, corrección de grano en P1
+
+**Caso de error:** P1 mezclaba granos: `units_sold` estaba a nivel de red, mientras el inventario
+promediaba registros de una tienda, y aun así pasó 58 tests dbt. Claude lo detectó recalculando desde
+las fuentes. **Lección:** un número plausible no es un número correcto; los tests deben validar
+magnitud, no solo estructura.
+
+**Corrección:** el inventario promedio de red ahora suma el promedio válido de cada combinación
+producto-tienda; la cobertura conserva la proporción de snapshots no `N/A`.
