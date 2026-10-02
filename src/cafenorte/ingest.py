@@ -30,6 +30,7 @@ from .contracts import (
 )
 from .engines import pardox_engine, polars_engine
 from .engines.common import validate_engine
+from .engines.pos_sales import build_pos_sales_pardox
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA = Path(os.environ.get("CAFENORTE_DATA_DIR", str(ROOT / "datos")))
@@ -206,7 +207,12 @@ def insert_rows(cur: psycopg.Cursor, sql: str, rows: list[tuple[Any, ...]]) -> N
 
 def add_row_hashes(data: dict[str, list[tuple[Any, ...]]]) -> None:
     for name, rows in data.items():
-        data[name] = [row[:-2] + row[-2:] + (row_hash(row[:-2]),) for row in rows]
+        data[name] = [
+            row
+            if isinstance(row[-1], str) and len(row[-1]) == 64
+            else row[:-2] + row[-2:] + (row_hash(row[:-2]),)
+            for row in rows
+        ]
 
 
 def row_hash(values: tuple[Any, ...]) -> str:
@@ -633,6 +639,10 @@ def _run(run_id: UUID, started: datetime, force: bool = False, engine: str = "po
             for x in rates
         ],
     }
+    if engine == "pardox":
+        data["sales"] = build_pos_sales_pardox(paths[0], run_id, ingested_at)
+        for name in ("stores", "products", "mappings", "snapshots", "orders", "rates"):
+            data[name] = []
     changed_paths = (
         paths
         if force

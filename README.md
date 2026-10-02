@@ -14,6 +14,8 @@ leer CSV y Parquet, hacer cast, validar contratos, convertir registros y escribi
 el JSON anidado de inventario usa el único fallback explícito a Polars. Ejecuta
 `uv run python -m cafenorte.ingest --engine pardox` y
 `uv run python -m cafenorte.benchmark` para generar evidencia.
+Por alcance de SPEC-003, solo `sales.csv` recorre PardoX de punta a punta; inventario, Shopify y
+tipos de cambio permanecen en Polars.
 
 <!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
 

@@ -282,3 +282,15 @@ PardoX usa `read_csv`, `read_parquet`, `cast`, `validate_contract`, `to_dict` y 
 `inventory.json` usa fallback Polars porque el lector JSON anidado no existe en la API instalada.
 El benchmark corre cada motor en subprocess, mide etapas y memoria, alterna una corrida fría y
 cinco calientes, y falla si una etapa con filas reporta menos de 1 ms.
+
+### Prompt 20: Bloque D2-2, PardoX punta a punta en sales
+
+**Caso de error:** D2-1 descartaba la salida de `prepare()` y cargaba `silver_pardox` con datos de
+Polars; además, el control negativo solo comparaba desigualdad y el benchmark mezclaba el JSON de
+31 MB con Polars, omitía el INSERT real y reportaba KB como MB.
+
+**Corrección:** `build_pos_sales_polars()` y `build_pos_sales_pardox()` comparten contrato de salida
+de tuplas Silver con `row_hash`; PardoX usa esa salida exclusivamente para `silver_pardox.pos_sales`.
+`check_parity()` se ejecuta antes y después de alterar/restaurar una fila. El benchmark queda limitado
+a `sales.csv`, usa PostgreSQL temporal, subprocess, memoria macOS en MB y compara `.prdx` contra
+Parquet/CSV serializado con guardas de 86,490 filas.

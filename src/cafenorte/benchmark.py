@@ -13,12 +13,34 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from .engines import pardox_engine, polars_engine
+from .engines.pos_sales import build_pos_sales_pardox, build_pos_sales_polars
 from .ingest import DATA, ROOT
 
 
 def worker(engine: str, result_path: Path) -> None:
     started = time.perf_counter()
     report = pardox_engine.prepare(DATA) if engine == "pardox" else polars_engine.prepare(DATA)
+    build = build_pos_sales_pardox if engine == "pardox" else build_pos_sales_polars
+    before = time.perf_counter()
+    rows = build(DATA / "sales.csv", __import__("uuid").uuid4(), datetime.now(UTC))
+    transform_seconds = time.perf_counter() - before
+    before = time.perf_counter()
+    from .ingest import connect
+
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "CREATE TEMP TABLE benchmark_pos_sales (venta_id text, fecha_hora_original text, "
+            "fecha_hora_normalizada timestamp, tienda_id text, sku text, product_number text, "
+            "cantidad bigint, monto numeric(18,2), moneda text, tipo_comprobante text, "
+            "run_id uuid, ingested_at timestamptz, row_hash text)"
+        )
+        cur.executemany(
+            "INSERT INTO benchmark_pos_sales VALUES (" + ",".join(["%s"] * 13) + ")", rows
+        )
+    load_seconds = time.perf_counter() - before
+    report.stage_seconds["all"]["transform"] = transform_seconds
+    report.stage_seconds["all"]["load"] = load_seconds
+    report.stage_seconds["all"]["total"] = time.perf_counter() - started
     records = []
     for stage, seconds in report.stage_seconds["all"].items():
         records.append(

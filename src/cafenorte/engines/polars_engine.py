@@ -1,6 +1,5 @@
 """Reference engine. Existing ingestion transformations remain the oracle."""
 
-import json
 import tempfile
 import time
 from pathlib import Path
@@ -14,16 +13,8 @@ def prepare(data_dir: Path) -> EngineReport:
     report = EngineReport(engine="polars", versions={"polars": pl.__version__})
     started = time.perf_counter()
     sales = pl.read_csv(data_dir / "sales.csv")
-    rates = pl.read_csv(data_dir / "exchange_rates.csv")
-    orders = pl.read_parquet(data_dir / "ecommerce_orders.parquet")
-    inventory = json.loads((data_dir / "inventory.json").read_text(encoding="utf-8"))
     report.stage_seconds["all"] = {"read": time.perf_counter() - started}
-    report.source_rows = {
-        "sales": sales.height,
-        "exchange_rates": rates.height,
-        "ecommerce_orders": orders.height,
-        "inventory": len(inventory["snapshots"]),
-    }
+    report.source_rows = {"sales": sales.height}
     report.rows.update(report.source_rows)
     before = time.perf_counter()
     valid = sales.filter(

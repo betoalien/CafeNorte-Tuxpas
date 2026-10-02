@@ -15,28 +15,17 @@ def prepare(data_dir: Path) -> EngineReport:
         engine="pardox", versions={"pardox": getattr(px, "__version__", "unknown")}
     )
     sales = px.read_csv(str(data_dir / "sales.csv"))
-    rates = px.read_csv(str(data_dir / "exchange_rates.csv"))
-    orders = px.read_parquet(str(data_dir / "ecommerce_orders.parquet"))
-    report.source_rows = {
-        "sales": int(sales.shape[0]),
-        "exchange_rates": int(rates.shape[0]),
-        "ecommerce_orders": int(orders.shape[0]),
-    }
+    report.source_rows = {"sales": int(sales.shape[0])}
     report.rows.update(report.source_rows)
     report.fallbacks["inventory.json"] = "polars: PardoX 0.3.4 has no nested JSON reader"
     read_seconds = time.perf_counter() - started
     before = time.perf_counter()
     sales.cast("cantidad", "Int64")
     sales.cast("monto", "Float64")
-    rates.cast("rate_to_mxn", "Float64")
-    orders.cast("cantidad", "Int64")
-    orders.cast("amount", "Float64")
     sales.validate_contract({"columns": {"cantidad": {"min": 1}, "monto": {"min": 0}}})
     validate_seconds = time.perf_counter() - before
     before = time.perf_counter()
     sales.to_dict()
-    rates.to_dict()
-    orders.to_dict()
     transform_seconds = time.perf_counter() - before
     before = time.perf_counter()
     sales.to_dict()
