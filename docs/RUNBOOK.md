@@ -61,10 +61,16 @@ uv, OpenSSL, ShellCheck y la herramienta de puertos del sistema. En WSL el repos
 fuera de `/mnt/`, dentro del filesystem Linux. Si la plataforma no tiene binario PardoX, la salida
 incluye `PardoX: UNSUPPORTED_PLATFORM (<os>-<arch>)`; se omiten únicamente las pruebas PardoX y el
 pipeline Polars conserva exit 0 si el resto pasa. En plataformas soportadas, la paridad es obligatoria.
+En macOS arm64 doctor reporta `PardoX: soportado (probado)`; en macOS x86_64 reporta que el binario
+está incluido pero no verificado. En Apple Silicon usa el Python arm64 de uv, no Python bajo Rosetta.
 
 Cada arranque genera `artifacts/reports/run_report.html`, un reporte estático ignorado por Git con
 run_id, modos, duración, conteos, validación, respuestas, URL de Superset y enlaces de revisión.
 Usa `--no-browser` o `CI=true` para imprimir solo la ruta.
+
+La compatibilidad macOS usa Bash 3.2 con `set -u`; los arrays vacíos se expanden con la forma
+`${arr[@]+"${arr[@]}"}`. CI usa Bash 5 y por eso el job `bash-compatibility` ejercita argumentos
+vacíos explícitamente.
 
 ### Datos nuevos
 

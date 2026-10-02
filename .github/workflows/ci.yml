@@ -20,3 +20,18 @@ jobs:
         run: ./scripts/start.sh --no-browser
       - name: Validate
         run: ./scripts/validate.sh
+
+  bash-compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Bash nounset and empty arguments
+        run: |
+          bash -n scripts/*.sh
+          ./scripts/start.sh --no-browser
+          ./scripts/start.sh

@@ -23,9 +23,13 @@ def esc(value: object) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     report_path = ROOT / "artifacts/reports/run_report.html"
     report_path.parent.mkdir(parents=True, exist_ok=True)
+    if args.dry_run:
+        print(f"Run report dry-run: {report_path}")
+        return
     with (
         psycopg.connect(
             host=os.environ.get("POSTGRES_HOST", "127.0.0.1"),

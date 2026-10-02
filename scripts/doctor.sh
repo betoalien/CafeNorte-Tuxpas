@@ -59,7 +59,11 @@ if grep -Il "$(printf '\r')" scripts/*.sh >/dev/null 2>&1; then
 fi
 
 case "$os/$arch" in
-  Darwin/arm64|Darwin/x86_64|Linux/x86_64|MINGW*/x86_64|MSYS*/x86_64|CYGWIN*/x86_64)
+  Darwin/arm64)
+    echo "PardoX: soportado (probado)" ;;
+  Darwin/x86_64)
+    echo "PardoX: binario incluido en 0.3.4, no verificado (sin runners macOS Intel en CI)" ;;
+  Linux/x86_64|MINGW*/x86_64|MSYS*/x86_64|CYGWIN*/x86_64)
     echo "PardoX: plataforma soportada ($os-$arch)" ;;
   Linux/aarch64|Linux/arm64)
     echo "PardoX: NO DISPONIBLE en linux-aarch64; el pipeline principal (Polars) no se ve afectado"

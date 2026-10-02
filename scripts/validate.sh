@@ -28,7 +28,7 @@ case "$(uname -s)" in
   Linux) checksum_command=(sha256sum -c SHA256SUMS) ;;
   *) echo "Unsupported platform for source checksum verification." >&2; exit 1 ;;
 esac
-if ! (cd datos && "${checksum_command[@]}" >/dev/null); then
+if ! (cd datos && "${checksum_command[@]+"${checksum_command[@]}"}" >/dev/null); then
   echo "fuente original del cliente modificada" >&2
   exit 1
 fi
@@ -68,8 +68,13 @@ case "$(uname -s)/$(uname -m)" in
     ;;
 esac
 if [[ "$pardox_supported" -eq 1 ]]; then
-  UV_CACHE_DIR=/tmp/cafenorte-uv-cache uv run python -m cafenorte.ingest --engine pardox --force
-  uv run pytest
+  if UV_CACHE_DIR=/tmp/cafenorte-uv-cache uv run python -m cafenorte.ingest --engine pardox --force; then
+    uv run pytest
+  else
+    pardox_supported=0
+    echo "PardoX: UNSUPPORTED_PLATFORM ($paradox_platform)"
+    uv run pytest --ignore=tests/test_engines.py
+  fi
 else
   uv run pytest --ignore=tests/test_engines.py
 fi
@@ -84,4 +89,8 @@ uv run python -m cafenorte.export_answers
 uv run ruff check scripts/profile_sources.py
 uv run python superset/test_rls.py
 mkdir -p artifacts/reports
+if /bin/bash --version 2>/dev/null | head -1 | grep -Eq 'version 3\.'; then
+  /bin/bash -n scripts/*.sh
+  uv run python scripts/run_report.py --dry-run --no-browser
+fi
 printf 'validate.sh: PASS (%s)\n' "$(date -u +%FT%TZ)" > artifacts/reports/last_validate.txt

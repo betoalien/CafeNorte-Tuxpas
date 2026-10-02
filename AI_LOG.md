@@ -383,6 +383,16 @@ La mejora de proceso es concreta: cada afirmación importante debe tener una gua
 ejecución end-to-end reproducible, y la evidencia final debe distinguir PASS real de una declaración
 de intención.
 
+### Cierre D3-5: compatibilidad Bash 3.2
+
+**Caso de error:** el reporte se había probado solo con Bash 5 y usando `--no-browser`. En macOS,
+Bash 3.2 con `set -u`, el arreglo vacío `report_args[@]` rompía `start.sh` antes de generar o abrir
+el HTML. El propietario lo detectó en una corrida manual.
+
+**Corrección y lección:** todas las expansiones de arreglos potencialmente vacíos usan la forma
+compatible `${arr[@]+"${arr[@]}"}`; se agregó una regresión para el intérprete real del usuario.
+La lección es probar en el intérprete real, no únicamente en CI.
+
 ### Cierre D3-2: ventana de P4
 
 **Caso de error:** `mart_negative_margin_products` declaraba una columna `period`, pero no aplicaba

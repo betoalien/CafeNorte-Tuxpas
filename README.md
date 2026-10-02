@@ -63,10 +63,15 @@ pequeños usan `full`. Para probar copias, usa `CAFENORTE_DATA_DIR`; `datos/` nu
 
 ## Plataformas probadas
 
-- macOS arm64: validación manual completa.
+- macOS arm64: validación manual completa; PardoX soportado (probado). Usa el Python arm64 que instala uv.
+- macOS x86_64: binario PardoX incluido en 0.3.4, no verificado por falta de runners Intel; si no carga,
+  se reporta `UNSUPPORTED_PLATFORM` sin tumbar Polars.
 - Ubuntu x86_64: validación continua en GitHub Actions.
 - WSL2: Ubuntu x86_64, ejecutando el repositorio dentro del filesystem Linux.
 - Linux ARM64: PardoX no disponible; Polars sigue siendo el pipeline principal.
+
+En Apple Silicon, Python bajo Rosetta reporta `x86_64` y puede intentar cargar el binario Intel;
+usa el Python arm64 instalado por uv.
 
 ## Capas
 

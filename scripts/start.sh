@@ -171,7 +171,7 @@ while [[ "$attempt" -le 30 ]]; do
     bash "$project_root/scripts/status.sh"
     report_args=()
     if [[ "$no_browser" -eq 1 ]]; then report_args+=(--no-browser); fi
-    uv run python scripts/run_report.py "${report_args[@]}"
+    uv run python scripts/run_report.py "${report_args[@]+"${report_args[@]}"}"
     exit 0
   fi
   sleep 2

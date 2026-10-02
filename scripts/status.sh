@@ -31,13 +31,18 @@ docker compose --env-file "$env_file" ps postgres
 docker compose --env-file "$env_file" ps redis superset
 
 if [[ "$health" == "healthy" ]]; then
-  printf 'Silver:\n'
+  printf 'PostgreSQL:\n'
   docker compose --env-file "$env_file" exec -T postgres sh -c \
     'pg_isready --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"'
+  printf 'Última corrida:\n'
   docker compose --env-file "$env_file" exec -T postgres sh -c \
     'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'
 SELECT run_id, status, input_count, accepted_count, rejected_count
 FROM audit.run_log ORDER BY started_at DESC LIMIT 1;
+SQL
+  printf 'Silver:\n'
+  docker compose --env-file "$env_file" exec -T postgres sh -c \
+    'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'
 SELECT table_name, row_count
 FROM (
   SELECT 'silver.pos_sales' AS table_name, count(*) AS row_count FROM silver.pos_sales
@@ -53,6 +58,11 @@ SQL
   if command -v uv >/dev/null 2>&1; then
     uv run dbt --version | sed 's/^Core:/dbt:/' | head -1
   fi
+  dbt_result="sin corridas"
+  if [[ -f artifacts/evidence/dbt/run_results.json ]]; then
+    dbt_result="$(uv run python -c "import json; p=json.load(open('artifacts/evidence/dbt/run_results.json')); s=[r['status'] for r in p.get('results',[])]; print(p.get('metadata',{}).get('generated_at','sin fecha')+' PASS='+str(s.count('pass'))+' WARN='+str(s.count('warn'))+' ERROR='+str(s.count('error')))" 2>/dev/null || echo "sin corridas")"
+  fi
+  printf 'Último dbt: %s\n' "$dbt_result"
   printf 'Gold (analytics):\n'
   docker compose --env-file "$env_file" exec -T postgres sh -c \
     'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'
@@ -65,4 +75,5 @@ FROM (
   UNION ALL SELECT 'analytics.mart_source_reconciliation', count(*) FROM analytics.mart_source_reconciliation
 ) gold_counts ORDER BY table_name;
 SQL
+  printf 'Reporte: %s\n' "$project_root/artifacts/reports/run_report.html"
 fi
