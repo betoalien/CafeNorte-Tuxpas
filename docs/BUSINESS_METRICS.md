@@ -58,22 +58,24 @@ gross_margin_mxn = sales_amount_mxn - quantity * effective_unit_cost_mxn
 - `tipo_comprobante` es un atributo del CFDI; todas las filas son ventas y el tipo nunca altera
   signo ni inclusión. Los CFDI se cuentan por tipo, no se suman ni se restan.
 
-## Objetos Gold previstos
+## Objetos Gold
 
-- `analytics.agg_monthly_channel_sales`
-- `analytics.agg_inventory_turnover_6m`
-- `analytics.mv_stockout_sequences_quarter`
-- `analytics.mv_negative_margin_by_store`
+- `analytics.dim_channel`
+- `analytics.dim_date`
+- `analytics.dim_product`
+- `analytics.dim_store`
+- `analytics.fct_sales`
+- `analytics.fct_inventory_daily`
 - `analytics.mart_inventory_turnover_top10`
 - `analytics.mart_stockouts_over_3_days`
 - `analytics.mart_monthly_channel_growth`
+- `analytics.mart_monthly_channel_type_growth`
 - `analytics.mart_negative_margin_products`
 - `analytics.mart_source_reconciliation`
 
-`mart_source_reconciliation` explicará por periodo, producto y canal por qué difieren POS, ERP y
+Todos son tablas reconstruidas por `dbt build`; a este volumen la reconstrucción tarda segundos.
+`mart_source_reconciliation` explica por periodo, producto y canal por qué difieren POS, ERP y
 Shopify: cobertura temporal, mappings, FX, granularidad y registros enviados a Audit.
-
-La eleccion entre tabla incremental y vista materializada se decidira por frecuencia, costo de recomputacion y necesidad de refresh concurrente.
 
 ## Decisiones de interpretación
 

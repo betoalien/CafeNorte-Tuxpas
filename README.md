@@ -86,7 +86,8 @@ todas las ventanas terminan en el último día común a las tres fuentes, el 31 
 La rotación es de toda la red y usa ventas de tiendas, porque el inventario del ERP es de tiendas.
 "Último trimestre" es el trimestre calendario. El crecimiento por canal se publica como físico
 contra e-commerce, con el detalle por tienda disponible. El margen usa el costo vigente en la
-fecha de cada venta. Las tablas completas y sus consultas están en
+fecha de cada venta. Supuse que el monto de venta es neto de IVA (no hay columna de impuesto y las
+categorías mezclan tasas de 0% y 16%). Las tablas completas y sus consultas están en
 [`artifacts/evidence/answers/`](artifacts/evidence/answers/).
 
 ## 4. Cómo lo construí
@@ -139,7 +140,7 @@ archivo pero no aplicada. El detalle está en [`AI_LOG.md`](AI_LOG.md).
 
 El reto estimaba de 2 a 4 horas de trabajo efectivo. Cerré primero el alcance pedido: las tres
 fuentes conciliadas, el modelo analítico, las cuatro respuestas verificadas, las pruebas, la
-propuesta y la bitácora. Quedó listo la primera tarde
+propuesta y la bitácora. Quedó listo el primer día
 ([`db9c980`](https://github.com/betoalien/CafeNorte-Tuxpas/commit/db9c980)). Después agregué,
 de forma deliberada, endurecimiento para operación real, en bloques pequeños, cada uno con su
 validación y su commit, de modo que en todo momento hubo una entrega completa.

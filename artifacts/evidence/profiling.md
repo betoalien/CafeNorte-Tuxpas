@@ -1,6 +1,6 @@
 # Perfilado reproducible de fuentes
 
-Generado: 2026-10-01T19:50:41-06:00
+Generado: 2026-10-02T13:22:53-06:00
 
 Los conteos provienen directamente de `datos/`; no se aplicaron transformaciones Silver ni se modificaron las fuentes.
 
@@ -202,7 +202,7 @@ El DOCX contiene `customXML/item1.xml`, pero no instrucciones; tampoco se encont
 | CFDI | Cinco tipos; cantidades y montos positivos; rangos de precios superpuestos. | Todas son ventas. El CFDI se cuenta por tipo; el tipo nunca altera signo ni inclusión. |
 | Producto | Número común a POS, ERP y Shopify; cinco mappings tienen `sku_erp` nulo y nombres Shopify validables contra catálogo. | Explícito solo con `sku_erp` válido; respaldo por número+nombre; `match_method`; no conciliado a Audit. |
 | IVA | No existe columna de impuesto; categorías con tasas 0% y 16%. | `monto` es importe neto sin IVA como supuesto documentado. |
-| Tiendas | ERP contiene ciudades no citadas y regiones inconsistentes. | `tiendas_info` es maestro; discrepancia reportada y pregunta abierta al cliente. |
+| Tiendas | ERP contiene ciudades no citadas y regiones inconsistentes. | `tiendas_info` es el maestro: define ciudad, región y zona horaria; las 40 tiendas coinciden en las tres fuentes; las diferencias con el relato del cliente quedan documentadas. |
 | FX | Cobertura diaria completa; EUR=22.0 exacto en 63 días. | Tasa de la fecha; se usa y se marca `fx_quality_flag` si es sospechosa. |
 | P2 | Snapshots diarios; N/A=4417. | Tienda listada si algún SKU tuvo >3 días con stock=0; N/A rompe; salida conserva detalle. |
 | P4 | POS tiene tienda; Shopify no. | POS por tienda; e-commerce como canal `ONLINE`. |

@@ -30,9 +30,9 @@ Construir una solucion reproducible de ingenieria de datos que ingiera las fuent
 5. Guardar evidencia reproducible en `artifacts/evidence/`.
 6. Actualizar `AI_LOG.md` durante el trabajo, no retrospectivamente al final.
 
-## Comandos oficiales previstos
+## Comandos oficiales
 
-Estos comandos son parte del contrato operativo y se implementaran antes de declarar el pipeline completo:
+Estos comandos están implementados. También existen como `uv run cafenorte <comando>` y `scripts/windows/*.bat`:
 
 ```bash
 ./scripts/start.sh
@@ -59,4 +59,3 @@ Una entrega solo esta terminada cuando:
 - no se publica PII ni secretos;
 - el costo y los supuestos AWS estan documentados;
 - `AI_LOG.md` contiene prompts, decisiones, correcciones y autocritica reales.
-

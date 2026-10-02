@@ -683,8 +683,9 @@ def closed_interpretations(common_anchor: date, inventory_facts: dict[str, Any])
                     "Tiendas",
                     "ERP contiene ciudades no citadas y regiones inconsistentes.",
                     (
-                        "`tiendas_info` es maestro; discrepancia reportada y pregunta abierta al "
-                        "cliente."
+                        "`tiendas_info` es el maestro: define ciudad, región y zona horaria; las "
+                        "40 tiendas coinciden en las tres fuentes; las diferencias con el relato "
+                        "del cliente quedan documentadas."
                     ),
                 ],
                 [

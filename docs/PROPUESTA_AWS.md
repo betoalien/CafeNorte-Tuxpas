@@ -59,7 +59,7 @@ OAuth y HTTPS reemplazan las credenciales locales del demo.
 ## Supuestos y preguntas abiertas antes de firmar
 
 - ¿POS y ERP pueden exportar diariamente CSV/JSON y subirlos por HTTPS?
-- ¿`tiendas_info` es el maestro aunque incluya ciudades y regiones no mencionadas?
+- Se asume que el ERP (`tiendas_info`) es el maestro de tiendas: define ciudad, región y zona horaria; las 40 tiendas coinciden en POS, ERP e inventario. Se pedirá al cliente corregir en el ERP las regiones inconsistentes (Monterrey y Chihuahua en 'centro').
 - ¿Cuál es la política de retención y está autorizado procesar los campos de Shopify?
 - ¿Qué reglas aplican a devoluciones, impuestos, costos y cambios de proveedor?
 - ¿Google o Microsoft será el IdP, y quién operará parches, backups y respuesta a incidentes?
