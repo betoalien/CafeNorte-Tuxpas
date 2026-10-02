@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import argparse
 import importlib.util
+import json
+import os
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,3 +85,53 @@ def test_browser_opens_superset_then_report(monkeypatch) -> None:
     cli.open_browser_target(report)
 
     assert opened == [superset, report]
+
+
+def test_start_browser_policy_for_flags_and_ci(monkeypatch) -> None:
+    env = {
+        "POSTGRES_PORT": "23779",
+        "SUPERSET_PORT": "59038",
+        "POSTGRES_DB": "cafenorte",
+        "POSTGRES_USER": "pipeline",
+        "PIPELINE_USER": "pipeline",
+        "PIPELINE_PASSWORD": "secret",
+        "SUPERSET_ADMIN_PASSWORD": "secret",
+        "DIRECTOR_PASSWORD": "secret",
+        "GERENTE_T001_PASSWORD": "secret",
+    }
+    monkeypatch.setattr(cli, "doctor", lambda: 0)
+    monkeypatch.setattr(cli, "write_env", lambda: env)
+    monkeypatch.setattr(cli, "compose", lambda *args, **kwargs: None)
+    monkeypatch.setattr(cli, "status", lambda: 0)
+
+    def fake_run(command, **kwargs):
+        if "inspect" in command:
+            return subprocess.CompletedProcess(command, 0, "healthy\n", "")
+        if any("ingest" in part for part in command):
+            return subprocess.CompletedProcess(command, 0, json.dumps({"load_mode": "skipped"}), "")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(cli, "run", fake_run)
+    opened: list[str] = []
+    monkeypatch.setattr(cli, "open_browser_target", opened.append)
+
+    original = {key: os.environ.get(key) for key in env}
+    try:
+        for args, ci, expected in (
+            (argparse.Namespace(no_browser=True, show_credentials=False), "", 0),
+            (argparse.Namespace(no_browser=False, show_credentials=False), "true", 0),
+            (argparse.Namespace(no_browser=False, show_credentials=False), "", 2),
+        ):
+            opened.clear()
+            monkeypatch.setenv("CI", ci)
+            assert cli.start(args) == 0
+            assert len(opened) == expected
+            if expected:
+                assert opened[0].startswith("http://127.0.0.1:59038/")
+                assert opened[1].endswith("/artifacts/reports/run_report.html")
+    finally:
+        for key, value in original.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value

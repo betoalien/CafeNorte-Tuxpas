@@ -140,7 +140,14 @@ def load_env(path: Path | None = None) -> dict[str, str]:
 def run(
     command: list[str], *, check: bool = True, capture: bool = False, cwd: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=cwd or ROOT, check=check, text=True, capture_output=capture)
+    return subprocess.run(
+        command,
+        cwd=cwd or ROOT,
+        check=check,
+        text=True,
+        capture_output=capture,
+        env=os.environ.copy(),
+    )
 
 
 def compose(

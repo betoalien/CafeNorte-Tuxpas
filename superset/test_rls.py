@@ -39,10 +39,31 @@ def query_chart(base, token, item, columns):
     return result["result"][0]["data"]
 
 
+def assert_dashboard_api(base, token):
+    dashboard = request(base, "/api/v1/dashboard/cafenorte-4-respuestas", token)
+    positions = json.loads(dashboard["result"]["position_json"])
+    if "ROOT_ID" not in positions or "GRID_ID" not in positions:
+        raise AssertionError("dashboard layout lacks ROOT_ID or GRID_ID")
+    chart_ids = {
+        key: node
+        for key, node in positions.items()
+        if key.startswith("CHART-")
+    }
+    if len(chart_ids) != 6 or any("chartId" not in node["meta"] for node in chart_ids.values()):
+        raise AssertionError("dashboard layout does not contain six chart nodes")
+    for path in (
+        "/api/v1/dashboard/cafenorte-4-respuestas/charts",
+        "/api/v1/dashboard/cafenorte-4-respuestas/datasets",
+    ):
+        request(base, path, token)
+
+
 def main():
     base = f"http://127.0.0.1:{os.environ['SUPERSET_PORT']}"
     manager_token = login(base, "gerente_t001", os.environ["GERENTE_T001_PASSWORD"])
     director_token = login(base, "director", os.environ["DIRECTOR_PASSWORD"])
+    assert_dashboard_api(base, director_token)
+    assert_dashboard_api(base, manager_token)
     director_charts = request(base, "/api/v1/chart/?q=(page:0,page_size:100)", director_token)[
         "result"
     ]

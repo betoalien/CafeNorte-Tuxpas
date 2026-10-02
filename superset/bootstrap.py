@@ -1,6 +1,5 @@
+import json
 import os
-
-from flask import current_app
 
 
 def role(name):
@@ -16,6 +15,7 @@ def role(name):
 
 
 def user(username, password, roles):
+    from flask import current_app
     from superset import db
 
     manager = current_app.appbuilder.sm
@@ -95,7 +95,68 @@ def rls(role_item, table_item, name, clause):
     item.tables = [table_item]
 
 
+def dashboard_layout(charts):
+    positions = {
+        "DASHBOARD_VERSION_KEY": "v2",
+        "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
+        "HEADER_ID": {
+            "type": "HEADER",
+            "id": "HEADER_ID",
+            "meta": {"text": "CaféNorte — 4 respuestas"},
+        },
+        "GRID_ID": {
+            "type": "GRID",
+            "id": "GRID_ID",
+            "parents": ["ROOT_ID"],
+            "children": [],
+        },
+    }
+    for index in range(0, len(charts), 2):
+        row_id = f"ROW-{index // 2 + 1}"
+        row = {
+            "type": "ROW",
+            "id": row_id,
+            "parents": ["ROOT_ID", "GRID_ID"],
+            "children": [],
+            "meta": {"background": "BACKGROUND_TRANSPARENT"},
+        }
+        for chart_item in charts[index : index + 2]:
+            chart_id = f"CHART-{chart_item.id}"
+            row["children"].append(chart_id)
+            positions[chart_id] = {
+                "type": "CHART",
+                "id": chart_id,
+                "children": [],
+                "parents": ["ROOT_ID", "GRID_ID", row_id],
+                "meta": {
+                    "chartId": chart_item.id,
+                    "sliceName": chart_item.slice_name,
+                    "width": 6,
+                    "height": 50,
+                    "uuid": str(getattr(chart_item, "uuid", "")),
+                },
+            }
+        positions[row_id] = row
+        positions["GRID_ID"]["children"].append(row_id)
+    return positions
+
+
+def dashboard_metadata(positions):
+    return {
+        "native_filter_configuration": [],
+        "color_scheme": "",
+        "refresh_frequency": 0,
+        "positions": positions,
+        "chart_configuration": {},
+        "timed_refresh_immune_slices": [],
+        "expanded_slices": {},
+        "label_colors": {},
+        "default_filters": "{}",
+    }
+
+
 def main():
+    from flask import current_app
     from superset import db
     from superset.models.core import Database
     from superset.models.dashboard import Dashboard
@@ -203,13 +264,10 @@ def main():
             db.session.add(dashboard)
         dashboard.roles = [director, gerente]
         dashboard.slices = charts
-        dashboard.position_json = (
-            "{"
-            + ",".join(
-                f'"CHART-{item.id}": {{"meta": {{"sliceName": "{item.slice_name}"}}}}'
-                for item in charts
-            )
-            + "}"
+        positions = dashboard_layout(charts)
+        dashboard.position_json = json.dumps(positions, ensure_ascii=False)
+        dashboard.json_metadata = json.dumps(
+            dashboard_metadata(positions), ensure_ascii=False
         )
         db.session.commit()
 
