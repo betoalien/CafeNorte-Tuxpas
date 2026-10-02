@@ -138,7 +138,13 @@ while [[ "$attempt" -le 30 ]]; do
     printf '%s\n' "$ingest_output"
     load_mode="$(printf '%s\n' "$ingest_output" | uv run python -c 'import json,sys; print(json.load(sys.stdin)["load_mode"])')"
     if [[ "$load_mode" != "skipped" ]]; then
-      uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt
+      anchor_date="$(docker compose --env-file "$env_file" exec -T postgres sh -c \
+        'psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -At -c "SELECT LEAST((SELECT max(fecha_hora_normalizada::date) FROM silver.pos_sales), (SELECT max(fecha::date) FROM silver.ecommerce_orders), (SELECT max(fecha) FROM silver.inventory_snapshots));"' \
+        | tr -d '\r')"
+      [[ "$anchor_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "Could not calculate anchor_date: $anchor_date" >&2; exit 1; }
+      echo "anchor_date=$anchor_date"
+      uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt \
+        --vars "{\"anchor_date\": \"'$anchor_date'\"}"
       uv run python -m cafenorte.export_answers
     else
       echo "No source changed; dbt build and answer export skipped."

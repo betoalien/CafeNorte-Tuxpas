@@ -204,16 +204,34 @@ def insert_rows(cur: psycopg.Cursor, sql: str, rows: list[tuple[Any, ...]]) -> N
 
 def add_row_hashes(data: dict[str, list[tuple[Any, ...]]]) -> None:
     for name, rows in data.items():
-        data[name] = [
-            row[:-2]
-            + row[-2:]
-            + (row_hash(row[:-2]),)
-            for row in rows
-        ]
+        data[name] = [row[:-2] + row[-2:] + (row_hash(row[:-2]),) for row in rows]
 
 
 def row_hash(values: tuple[Any, ...]) -> str:
     return hashlib.sha256(json.dumps(values, default=str, sort_keys=True).encode()).hexdigest()
+
+
+def business_key(name: str, row: tuple[Any, ...]) -> Any:
+    return {
+        "sales": row[0],
+        "stores": row[0],
+        "products": row[0],
+        "mappings": row[0],
+        "snapshots": row[:3],
+        "orders": row[0],
+        "rates": row[:2],
+    }[name]
+
+
+TABLES = {
+    "sales": ("silver.pos_sales", "venta_id"),
+    "stores": ("silver.stores", "tienda_id"),
+    "products": ("silver.products", "sku_erp"),
+    "mappings": ("silver.sku_mappings", "sku_pos"),
+    "snapshots": ("silver.inventory_snapshots", "(fecha, tienda_id, sku_erp)"),
+    "orders": ("silver.ecommerce_orders", "order_id"),
+    "rates": ("silver.exchange_rates", "(fecha, currency)"),
+}
 
 
 def ensure_tables() -> None:
@@ -228,17 +246,24 @@ def load(
     data: dict[str, Any],
     source_paths: list[Path],
     hashes_before: dict[Path, str],
+    table_modes: dict[str, str],
 ) -> None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(DDL)
         add_row_hashes(data)
-        cur.execute("DELETE FROM silver.pos_sales")
-        cur.execute("DELETE FROM silver.stores")
-        cur.execute("DELETE FROM silver.products")
-        cur.execute("DELETE FROM silver.sku_mappings")
-        cur.execute("DELETE FROM silver.inventory_snapshots")
-        cur.execute("DELETE FROM silver.ecommerce_orders")
-        cur.execute("DELETE FROM silver.exchange_rates")
+        for name, (table, key_columns) in TABLES.items():
+            mode = table_modes[name]
+            if mode == "full":
+                cur.execute(f"DELETE FROM {table}")
+            elif mode == "incremental":
+                key_sql = key_columns.strip("()")
+                cur.execute(f"SELECT {key_sql}, row_hash FROM {table}")
+                existing = {
+                    (row[:-1] if len(row) > 2 else row[0]): row[-1] for row in cur.fetchall()
+                }
+                data[name] = [row for row in data[name] if business_key(name, row) not in existing]
+            elif mode == "skipped":
+                data[name] = []
         insert_rows(
             cur,
             "INSERT INTO silver.pos_sales VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -305,7 +330,7 @@ def load(
                 total_accepted,
                 total_rejected,
                 None,
-                manifests[0].load_mode,
+                json.dumps({m.source_file: m.load_mode for m in manifests}, sort_keys=True),
             ),
         )
 
@@ -332,7 +357,7 @@ def record_failed(run_id: UUID, started: datetime, error: Exception) -> None:
             )
     except psycopg.Error:
         # A failed connection before init cannot create an audit row.
-            pass
+        pass
 
 
 def record_skipped(run_id: UUID, started: datetime) -> None:
@@ -386,7 +411,13 @@ def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
         path: str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else path.name
         for path in paths
     }
-    if not force and previous and all(previous.get(source_names[path]) == digest for path, digest in hashes_before.items()):
+    if (
+        not force
+        and previous
+        and all(
+            previous.get(source_names[path]) == digest for path, digest in hashes_before.items()
+        )
+    ):
         record_skipped(run_id, started)
         result = {"run_id": str(run_id), "load_mode": "skipped"}
         print(json.dumps(result))
@@ -585,17 +616,42 @@ def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
             for x in rates
         ],
     }
-    changed_paths = [path for path in paths if previous.get(source_names[path]) != hashes_before[path]]
-    load_mode = "full"
-    if previous and changed_paths and all(path == paths[0] for path in changed_paths):
-        with connect() as conn, conn.cursor() as cur:
-            cur.execute("SELECT venta_id, row_hash FROM silver.pos_sales")
-            existing = dict(cur.fetchall())
-        incoming = {row[0]: row_hash(row[:-2]) for row in data["sales"]}
-        if set(existing).issubset(incoming) and all(existing[key] == incoming[key] for key in existing):
-            load_mode = "incremental"
+    changed_paths = (
+        paths
+        if force
+        else [path for path in paths if previous.get(source_names[path]) != hashes_before[path]]
+    )
+    table_modes = {name: "skipped" for name in TABLES}
+    source_modes = {source_names[path]: "skipped" for path in paths}
+    source_to_tables = {
+        source_names[paths[0]]: ["sales"],
+        source_names[paths[1]]: ["stores", "products", "mappings", "snapshots"],
+        source_names[paths[2]]: ["orders"],
+        source_names[paths[3]]: ["rates"],
+    }
+    with connect() as conn, conn.cursor() as cur:
+        for path in changed_paths:
+            names = source_to_tables[source_names[path]]
+            for name in names:
+                if force or name in {"stores", "products", "mappings"}:
+                    table_modes[name] = "full"
+                    continue
+                table, key_columns = TABLES[name]
+                cur.execute(f"SELECT {key_columns.strip('()')}, row_hash FROM {table}")
+                existing = {
+                    (row[:-1] if len(row) > 2 else row[0]): row[-1] for row in cur.fetchall()
+                }
+                incoming = {business_key(name, row): row_hash(row[:-2]) for row in data[name]}
+                table_modes[name] = (
+                    "incremental"
+                    if set(existing).issubset(incoming)
+                    and all(existing[key] == incoming[key] for key in existing)
+                    else "full"
+                )
+            modes = {table_modes[name] for name in names} - {"skipped"}
+            source_modes[source_names[path]] = "incremental" if modes == {"incremental"} else "full"
     for manifest in manifests:
-        manifest.load_mode = load_mode
+        manifest.load_mode = source_modes[manifest.source_file]
     load(
         run_id,
         manifests,
@@ -603,14 +659,15 @@ def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
         data,
         paths,
         hashes_before,
+        table_modes,
     )
     payload = {"run_id": str(run_id), "manifests": [m.model_dump(mode="json") for m in manifests]}
     (MANIFEST_DIR / f"{run_id}.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    result = {"run_id": str(run_id), "load_mode": load_mode, "manifests": payload["manifests"]}
+    result = {"run_id": str(run_id), "load_mode": source_modes, "manifests": payload["manifests"]}
     print(json.dumps(result, ensure_ascii=False))
-    return load_mode
+    return json.dumps(source_modes, sort_keys=True)
 
 
 def main() -> None:

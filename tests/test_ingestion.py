@@ -1,5 +1,9 @@
+import csv
+import shutil
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 
 from cafenorte import ingest
 
@@ -15,7 +19,7 @@ def latest_run_id() -> str:
 
 
 def test_real_sources_and_idempotence() -> None:
-    ingest.main()
+    ingest._run(uuid4(), ingest.now())
     first = query(
         """
         SELECT table_name, rows, units, amount FROM (
@@ -36,7 +40,7 @@ def test_real_sources_and_idempotence() -> None:
     first_quarantine = query(
         "SELECT count(*) FROM audit.quarantine WHERE run_id = '" + first_run_id + "'"
     )[0][0]
-    ingest.main()
+    ingest._run(uuid4(), ingest.now())
     second = query(
         """
         SELECT table_name, rows, units, amount FROM (
@@ -149,3 +153,67 @@ def test_no_duplicate_business_keys() -> None:
         """
     )
     assert all(row[0] == 0 for row in checks)
+
+
+def test_real_incremental_and_full_modes_with_temp_sources(tmp_path, monkeypatch) -> None:
+    temp_data = tmp_path / "datos"
+    shutil.copytree(Path("datos"), temp_data)
+    original_data = ingest.DATA
+    monkeypatch.setattr(ingest, "DATA", temp_data)
+    try:
+        ingest._run(uuid4(), datetime.now(UTC), force=True)
+        baseline = query(
+            "SELECT venta_id, run_id, monto FROM silver.pos_sales ORDER BY venta_id LIMIT 1"
+        )[0]
+        baseline_other = query("SELECT run_id FROM silver.ecommerce_orders LIMIT 1")[0][0]
+
+        ingest._run(uuid4(), datetime.now(UTC))
+        assert (
+            query(f"SELECT run_id FROM silver.pos_sales WHERE venta_id = '{baseline[0]}'")[0][0]
+            == baseline[1]
+        )
+
+        sales_path = temp_data / "sales.csv"
+        with sales_path.open(newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream))
+            fieldnames = rows[0].keys()
+        for index in range(3):
+            row = dict(rows[index])
+            row["venta_id"] = f"D1-3-NEW-{index}"
+            rows.append(row)
+        with sales_path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        ingest._run(uuid4(), datetime.now(UTC))
+        assert query("SELECT count(*) FROM silver.pos_sales")[0][0] == 86493
+        assert (
+            query(f"SELECT run_id FROM silver.pos_sales WHERE venta_id = '{baseline[0]}'")[0][0]
+            == baseline[1]
+        )
+
+        rows[0]["monto"] = "999.99"
+        with sales_path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        ingest._run(uuid4(), datetime.now(UTC))
+        assert query(f"SELECT monto FROM silver.pos_sales WHERE venta_id = '{baseline[0]}'")[0][
+            0
+        ] == Decimal("999.99")
+        assert query("SELECT count(*) - count(DISTINCT venta_id) FROM silver.pos_sales")[0][0] == 0
+        assert query("SELECT run_id FROM silver.ecommerce_orders LIMIT 1")[0][0] == baseline_other
+
+        rows = [row for row in rows if row["venta_id"] != "V00000000"]
+        with sales_path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        ingest._run(uuid4(), datetime.now(UTC))
+        assert (
+            query(f"SELECT count(*) FROM silver.pos_sales WHERE venta_id = '{baseline[0]}'")[0][0]
+            == 0
+        )
+    finally:
+        monkeypatch.setattr(ingest, "DATA", original_data)
+        ingest._run(uuid4(), datetime.now(UTC), force=True)

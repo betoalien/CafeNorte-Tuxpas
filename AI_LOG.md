@@ -247,3 +247,14 @@ gerente y director, comprueba T001/ONLINE y conserva un control negativo sin fil
 decisión temprana por SHA-256/clave/`row_hash`, y evitar modelos incrementales dbt porque este
 volumen reconstruye Gold en segundos. `skipped` no toca Silver ni ejecuta dbt/exportación;
 `incremental` admite solo claves nuevas y cambios o bajas fuerzan `full`.
+
+### Prompt 17: Bloque D1-3, carga incremental real
+
+**Caso de error:** D1-2 registraba `incremental`, pero `load()` seguía recargando todas las
+tablas y no había pruebas de los modos. **Lección:** la etiqueta no es el comportamiento; hay que
+probarlo con el `run_id` de las filas.
+
+**Corrección:** `load()` ahora aplica el modo por tabla dentro de una sola transacción: `skipped`
+no inserta, `incremental` inserta solo claves nuevas y `full` reemplaza únicamente la tabla de la
+fuente cambiada. La prueba temporal cubre tres altas, modificación y baja, y restaura el estado con
+`--force`. `start.sh` y `validate.sh` calculan el `anchor_date` común desde Silver y lo pasan a dbt.

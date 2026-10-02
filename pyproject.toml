@@ -31,6 +31,7 @@ src = ["src", "scripts", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+per-file-ignores = { "src/cafenorte/ingest.py" = ["E501"], "tests/test_ingestion.py" = ["E501"], "src/cafenorte/export_answers.py" = ["E501"] }
 
 [tool.ruff.format]
 quote-style = "double"
