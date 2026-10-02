@@ -122,13 +122,12 @@ if grep -Eq '^POSTGRES_PORT=auto([[:space:]]|$)' "$env_file"; then
   exit 1
 fi
 
-docker compose --env-file "$env_file" up -d postgres redis superset
+docker compose --env-file "$env_file" up -d postgres redis
 
 attempt=1
 while [[ "$attempt" -le 30 ]]; do
   health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-postgres 2>/dev/null || true)"
-  superset_health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-superset 2>/dev/null || true)"
-  if [[ "$health" == "healthy" ]] && [[ "$superset_health" == "healthy" ]] && docker compose --env-file "$env_file" exec -T postgres \
+  if [[ "$health" == "healthy" ]] && docker compose --env-file "$env_file" exec -T postgres \
     sh -c 'pg_isready --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' >/dev/null 2>&1; then
     set -a
     # shellcheck disable=SC1090
@@ -149,6 +148,17 @@ while [[ "$attempt" -le 30 ]]; do
     else
       echo "No source changed; dbt build and answer export skipped."
     fi
+    docker compose --env-file "$env_file" up -d superset
+    superset_attempt=1
+    while [[ "$superset_attempt" -le 30 ]]; do
+      superset_health="$(docker inspect --format='{{.State.Health.Status}}' cafenorte-superset 2>/dev/null || true)"
+      if [[ "$superset_health" == "healthy" ]]; then
+        break
+      fi
+      sleep 2
+      superset_attempt=$((superset_attempt + 1))
+    done
+    [[ "$superset_health" == "healthy" ]] || { docker compose --env-file "$env_file" logs superset; echo "Superset did not become healthy after 60 seconds." >&2; exit 1; }
     bash "$project_root/scripts/status.sh"
     exit 0
   fi

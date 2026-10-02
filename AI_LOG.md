@@ -365,3 +365,20 @@ apunta a offsets UTF-8 concatenados entre bloques sin acumulación del offset.
 **Decisión:** excluir `write_sql_prdx` de la tabla certificada x10 y entregar una reproducción
 versionada. El hallazgo fue reportado al propietario de PardoX como bug de PardoX 0.3.4. No se
 modificó el motor ni su instalación.
+
+### Cierre D3: autocrítica y estadísticas
+
+La revisión acumuló 10 bloques de trabajo, con 8 correcciones de validación/documentación y 2
+correcciones de arranque detectadas en la corrida desde clon limpio. Por tipo: 9 problemas de
+contratos o semántica, 8 de pruebas/evidencia, 5 de integración/operación, 3 de documentación y 2
+de benchmark/paridad PRDX; varios casos pertenecen a más de un tipo.
+
+El patrón más repetido fue **declarar en vez de ejecutar**: contar un mapping nulo como válido,
+llamar incremental a una recarga completa, probar RLS leyendo declaraciones, aceptar un dashboard
+vacío, medir trabajos distintos y afirmar inmutabilidad sin una prueba que pudiera fallar. La
+corrida D3 encontró además que Superset arrancaba antes de Gold y que `superset init` ocurría
+después del bootstrap; ambos problemas quedaron corregidos y revalidados en el clon limpio.
+
+La mejora de proceso es concreta: cada afirmación importante debe tener una guarda negativa o una
+ejecución end-to-end reproducible, y la evidencia final debe distinguir PASS real de una declaración
+de intención.

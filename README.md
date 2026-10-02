@@ -1,64 +1,32 @@
 # CaféNorte Data Platform Challenge
 
-## Estado
+## Qué Resuelve
 
-Bloques A, A-1, B, C y D1 implementados: perfilado, Bronze → Silver, dbt → Gold, las cuatro
-respuestas reproducibles y Superset local con Redis/RLS. D2 implementa una ruta PardoX aislada para
-sales.csv, con carga nativa a PostgreSQL, paridad SQL y benchmark reproducible.
+- **P1:** los tres primeros son `057-C` (1.362), `012-B` (1.226) y `041-D` (1.201) en rotación de red.
+- **P2:** las tiendas con rachas certificadas son `T015`, `T023` y `T038`.
+- **P3:** muestra la tendencia mensual de `ONLINE` frente a cada tienda POS, en MXN.
+- **P4:** `015-D` concentra el margen negativo, con `-230,810 MXN` en el histórico POS completo.
 
-## PardoX
+Las respuestas completas y sus periodos están en [`artifacts/evidence/answers/`](artifacts/evidence/answers/).
 
-PardoX es un motor DataFrame con núcleo en Rust, publicado en [pardox.io](https://www.pardox.io/).
-En este reto es una alternativa verificada, nunca el camino crítico: demuestra paridad con Polars y
-registra tiempos sobre las mismas fuentes. La versión fijada es `0.3.4`; su API documentada permite
-leer CSV, hacer cast, validar contratos y escribir `.prdx`, mientras
-el JSON anidado de inventario usa el único fallback explícito a Polars. Ejecuta
-`uv run python -m cafenorte.ingest --engine pardox` y
-`uv run python -m cafenorte.benchmark` para generar evidencia.
-Por alcance de SPEC-003, solo `sales.csv` recorre PardoX de punta a punta; inventario, Shopify y
-tipos de cambio permanecen en Polars por el alcance original de SPEC-003, no por una limitación
-inventada.
-
-El archivo Parquet puede ser menor que `.prdx`; el argumento de `.prdx` es la velocidad de escritura
-y recarga nativa, no una reducción garantizada de tamaño.
-
-<!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
-
-## Objetivo
-
-Crear una fuente analítica confiable para ventas e inventario de CaféNorte y responder:
-
-1. Top 10 SKU por rotación de inventario en los últimos seis meses.
-2. Tiendas con quiebres de stock mayores a tres días en el último trimestre.
-3. Crecimiento mensual de ventas por canal durante el último año.
-4. Productos con margen negativo y las tiendas donde ocurren.
-
-## Arquitectura local decidida
+## Arquitectura
 
 ```text
-Fuentes inmutables
-        |
-Contratos Pydantic
-        |
-Polars (referencia) / PardoX (alternativa verificada)
-        |
-PostgreSQL Silver
-        |
-dbt: intermedia, dimensiones, hechos y marts
-        |
-PostgreSQL Gold
-        |
-Apache Superset
+datos/ (solo lectura) -> contratos + cuarentena -> Polars -> PostgreSQL Silver
+                                             -> dbt -> analytics Gold -> Superset/RLS
+                                             -> audit/manifests/evidencia
+                                      PardoX: ruta alternativa aislada para sales.csv
 ```
 
-Polars y PardoX realizan la preparación columnar. PostgreSQL persiste y sirve los datos. dbt es propietario de las reglas de negocio y la capa semántica materializada. Superset consulta únicamente Gold mediante `psycopg2` y aplica RLS por tienda.
+Polars es la referencia reproducible; Pydantic hace explícitos los contratos; PostgreSQL aporta
+transacciones, trazabilidad y serving; dbt posee conciliación, FX, costos y métricas; Superset solo
+consulta Gold. Redis se limita a caché de Superset. PardoX demuestra una alternativa de motor sin
+convertirse en dependencia del camino crítico.
 
-## Capas
+## Estado
 
-- **Bronze:** archivos originales y manifiestos; nunca se modifican.
-- **Silver:** entidades técnicamente normalizadas y PII excluida.
-- **Gold:** dimensiones, hechos, métricas y marts certificados por dbt.
-- **Audit:** cuarentena, reconciliaciones, calidad y ejecuciones.
+Bloques A, A-1, B, C y D1 implementados. D2 queda entregado como ruta experimental documentada;
+PardoX no reemplaza Silver cuando falla una guarda de paridad.
 
 ## Ver los dashboards
 
@@ -68,13 +36,50 @@ reporta `./scripts/status.sh`. El dashboard es **CaféNorte — 4 respuestas**. 
 en `.env` (permisos 600). `gerente_t001` solo ve T001 en P2/P3/P4; `director` ve toda la red sin
 ser `Admin`; P1 es un indicador de red y lo ven todos los roles.
 
-## Datos nuevos
+## Datos Nuevos
 
-`start.sh` compara SHA-256 contra la última corrida exitosa. Si no cambió ninguna fuente usa
-`skipped` y conserva Silver/Gold; con cambios compatibles por clave usa `incremental`; una fila
-modificada o eliminada fuerza `full` para esa fuente. `uv run python -m cafenorte.ingest --force`
-fuerza una carga completa. Las copias de prueba pueden vivir en `CAFENORTE_DATA_DIR`; `datos/`
-siempre se abre en solo lectura.
+`skipped` conserva Silver y no ejecuta dbt ni exporta; `incremental` inserta solo claves nuevas;
+`full` reemplaza la tabla de la fuente cuando cambia una fila o desaparece una clave. Los maestros
+pequeños usan `full`. Para probar copias, usa `CAFENORTE_DATA_DIR`; `datos/` nunca se modifica.
+
+## Calidad y Supuestos
+
+- Los cinco mappings con `sku_erp` nulo se conservan y se concilian por número de producto cuando procede.
+- CFDI no cambia signo ni inclusión; las 86,490 filas se cuentan por tipo.
+- `N/A` significa desconocido, nunca cero; EUR 22.0 se conserva con bandera de calidad.
+- `tiendas_info` es el maestro y sus tiendas/regiones fuera del relato se reportan, no se corrigen silenciosamente.
+- Shopify contiene PII que se excluye de Silver y Gold; la hora POS se trata como hora local de tienda y dbt puede usar la zona del maestro.
+- Se supone que `monto` es neto sin IVA y que las fechas de las fuentes son comparables para el ancla común.
+
+**Costo AWS:** la propuesta estimada es **USD 34.49/mes** con contingencia; ver [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md).
+
+## Capas
+
+- **Bronze:** archivos originales y manifiestos; nunca se modifican.
+- **Silver:** entidades técnicamente normalizadas y PII excluida.
+- **Gold:** dimensiones, hechos, métricas y marts certificados por dbt.
+- **Audit:** cuarentena, reconciliaciones, calidad y ejecuciones.
+
+## PardoX
+
+PardoX es un motor DataFrame con núcleo en Rust, publicado en [pardox.io](https://www.pardox.io/).
+Por SPEC-003, solo `sales.csv` recorre PardoX de punta a punta; inventario, Shopify y FX quedan en
+Polars. El bloque demuestra paridad, carga nativa y tiempos, no reemplaza la ingesta crítica.
+
+Resultados: a ×1 PardoX `to_sql` totaliza 0.173562 s frente a 0.441900 s de Polars; a ×10,
+1.964213 s frente a 2.664857 s. `write_sql_prdx` queda excluido a ×10 por fallo de paridad;
+la [reproducción](artifacts/evidence/pardox-0.3.4-prdx-repro/README.md) documenta el caso.
+
+- Motor propio, no un wrapper.
+
+<!-- POR QUÉ CREÉ PARDOX: pendiente del propietario -->
+
+## Uso de IA y limitaciones
+
+La bitácora de decisiones, errores y correcciones está en [`AI_LOG.md`](AI_LOG.md). Limitaciones
+conocidas: PardoX es experimental para este volumen; `write_sql_prdx` falla la guarda x10; los
+precios AWS son una estimación; la autenticación de Superset es local; y la zona horaria POS es un
+supuesto de hora local que dbt puede convertir usando el maestro de tiendas.
 
 ## Documentación
 
