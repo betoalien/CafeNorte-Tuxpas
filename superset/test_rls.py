@@ -3,35 +3,51 @@ import os
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
 
-def post(url, payload):
-    request = urllib.request.Request(
-        url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
-    )
+def request(base, path, token, payload=None):
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    body = None if payload is None else json.dumps(payload).encode()
+    request = urllib.request.Request(f"{base}{path}", data=body, headers=headers)
     with urllib.request.urlopen(request) as response:
         return json.load(response)
 
 
+def login(base, username, password):
+    return request(base, "/api/v1/security/login", None, {"username": username, "password": password, "provider": "db", "refresh": True})["access_token"]
+
+
+def query_chart(base, token, item, columns):
+    result = request(base, "/api/v1/chart/data", token, {"datasource": {"id": item["datasource_id"], "type": "table"}, "queries": [{"columns": columns, "metrics": [], "row_limit": 1000}], "result_format": "json", "result_type": "full"})
+    return result["result"][0]["data"]
+
+
 def main():
     base = f"http://127.0.0.1:{os.environ['SUPERSET_PORT']}"
-    visible = {}
-    for username, password in (("gerente_t001", os.environ["GERENTE_T001_PASSWORD"]), ("director", os.environ["SUPERSET_ADMIN_PASSWORD"])):
-        token = post(f"{base}/api/v1/security/login", {"username": username, "password": password, "provider": "db", "refresh": True})["access_token"]
-        request = urllib.request.Request(f"{base}/api/v1/dashboard/?q=(page:0,page_size:100)", headers={"Authorization": f"Bearer {token}"})
-        with urllib.request.urlopen(request) as response:
-            dashboards = json.load(response)
-        visible[username] = [item.get("slug") for item in dashboards.get("result", [])]
-    if "cafenorte-4-respuestas" not in visible["director"]:
-        raise AssertionError(f"dashboard missing for director: {visible}")
-    rules = Path(__file__).with_name("rls.yaml").read_text()
-    for table in ("mart_stockouts_over_3_days", "mart_monthly_channel_growth", "mart_negative_margin_products"):
-        if table not in rules:
-            raise AssertionError(f"missing RLS table rule: {table}")
-    if "tienda_id = 'T001'" not in rules:
-        raise AssertionError("missing T001 RLS clause")
-    print("Superset API login, dashboard import, and T001 RLS declaration: PASS")
+    manager_token = login(base, "gerente_t001", os.environ["GERENTE_T001_PASSWORD"])
+    director_token = login(base, "director", os.environ["DIRECTOR_PASSWORD"])
+    director_charts = request(base, "/api/v1/chart/?q=(page:0,page_size:100)", director_token)["result"]
+    if len(director_charts) < 5:
+        raise AssertionError(f"dashboard must have at least five charts: {len(director_charts)}")
+    by_name = {item["slice_name"]: item for item in director_charts}
+    p3_manager = query_chart(base, manager_token, by_name["P3 · Crecimiento por canal"], ["channel"])
+    p4_manager = query_chart(base, manager_token, by_name["P4 · Margen negativo"], ["tienda_id", "channel"])
+    if not p3_manager or not all(row["channel"] == "T001" for row in p3_manager):
+        raise AssertionError(f"manager P3 leaked rows: {p3_manager[:3]}")
+    if not p4_manager or not all(row["tienda_id"] == "T001" for row in p4_manager):
+        raise AssertionError(f"manager P4 leaked rows: {p4_manager[:3]}")
+    p3_director = query_chart(base, director_token, by_name["P3 · Crecimiento por canal"], ["channel"])
+    channels = {row["channel"] for row in p3_director}
+    if len(channels) <= 1 or "ONLINE" not in channels:
+        raise AssertionError(f"director P3 lacks network channels: {channels}")
+    print(f"manager P3 rows={len(p3_manager)} channels=T001")
+    print(f"manager P4 rows={len(p4_manager)} tienda_id=T001")
+    print(f"director P3 rows={len(p3_director)} channels={sorted(channels)}")
+    print(f"negative control: director without T001 rule sees {len(channels)} channels")
+    print(f"dashboard charts={len(director_charts)}")
+    print("Superset API data queries and RLS: PASS")
 
 
 if __name__ == "__main__":

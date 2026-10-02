@@ -1,4 +1,4 @@
-tienda_id,product_id,start_date,end_date,days,starts_before_window,period,built_at,logic_version
-T015,ERP-PROV-MX-014-D,2026-02-09,2026-02-12,4,False,2026-01-01/2026-03-31,2026-10-02 03:39:15.405391+00:00,business_metrics.v1
-T023,ERP-PROV-MX-046-A,2026-01-25,2026-01-28,4,False,2026-01-01/2026-03-31,2026-10-02 03:39:15.405391+00:00,business_metrics.v1
-T038,ERP-PROV-MX-040-A,2026-03-18,2026-03-21,4,False,2026-01-01/2026-03-31,2026-10-02 03:39:15.405391+00:00,business_metrics.v1
+tienda_id,product_id,start_date,end_date,days,starts_before_window,period,logic_version
+T015,ERP-PROV-MX-014-D,2026-02-09,2026-02-12,4,False,2026-01-01/2026-03-31,business_metrics.v1
+T023,ERP-PROV-MX-046-A,2026-01-25,2026-01-28,4,False,2026-01-01/2026-03-31,business_metrics.v1
+T038,ERP-PROV-MX-040-A,2026-03-18,2026-03-21,4,False,2026-01-01/2026-03-31,business_metrics.v1

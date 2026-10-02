@@ -16,6 +16,10 @@ Las versiones locales quedan fijadas en `apache/superset:4.1.1` y `redis:7.2.7-a
 son imágenes multi-arquitectura con `linux/arm64`. `start.sh` genera el puerto de Superset, la
 clave secreta y las contraseñas demo en `.env` con `openssl rand`.
 
+`admin` conserva el rol administrativo; `director` usa un rol propio con acceso completo a los
+datasets Gold, y `gerente_t001` usa Gamma más su rol propio sin Alpha ni SQL Lab. `DIRECTOR_PASSWORD`
+se genera junto con las demás credenciales.
+
 - **Local:** Superset conecta mediante `psycopg2` al schema PostgreSQL `analytics` con usuario de solo lectura. RLS limita al gerente a su tienda y permite a dirección consultar todas. La demo usa autenticación local; no incorpora OAuth, Let's Encrypt ni proxy HTTPS.
 - **Producción AWS:** Superset conecta a Athena mediante PyAthena y usa Redis para caché. Se habilitan OAuth Google/Microsoft, HTTPS/443 con Let's Encrypt y RLS equivalente.
 

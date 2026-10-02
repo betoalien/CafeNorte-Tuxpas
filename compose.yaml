@@ -29,8 +29,6 @@ services:
     container_name: cafenorte-redis
     image: redis:7.2.7-alpine3.21
     command: ["redis-server", "--appendonly", "yes"]
-    ports:
-      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -55,6 +53,7 @@ services:
       SUPERSET_META_PASSWORD: ${SUPERSET_META_PASSWORD:?SUPERSET_META_PASSWORD is required}
       SUPERSET_RO_PASSWORD: ${SUPERSET_RO_PASSWORD:?SUPERSET_RO_PASSWORD is required}
       SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:?SUPERSET_ADMIN_PASSWORD is required}
+      DIRECTOR_PASSWORD: ${DIRECTOR_PASSWORD:?DIRECTOR_PASSWORD is required}
       GERENTE_T001_PASSWORD: ${GERENTE_T001_PASSWORD:?GERENTE_T001_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
       SUPERSET_META_DB: postgresql+psycopg2://superset_meta:${SUPERSET_META_PASSWORD}@postgres:5432/superset_meta

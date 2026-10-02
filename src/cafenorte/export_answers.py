@@ -31,6 +31,10 @@ def main() -> None:
             cur.execute(sql)
             headers = [column.name for column in cur.description]
             rows = cur.fetchall()
+            if "built_at" in headers:
+                built_at_index = headers.index("built_at")
+                headers.pop(built_at_index)
+                rows = [tuple(value for index, value in enumerate(row) if index != built_at_index) for row in rows]
             with (OUT / f"{name}.csv").open("w", newline="", encoding="utf-8") as stream:
                 writer = csv.writer(stream)
                 writer.writerow(headers)

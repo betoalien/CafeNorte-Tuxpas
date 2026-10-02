@@ -46,8 +46,8 @@ Polars y PardoX realizan la preparación columnar. PostgreSQL persiste y sirve l
 Después de `./scripts/start.sh`, abre `http://127.0.0.1:<SUPERSET_PORT>` usando el puerto que
 reporta `./scripts/status.sh`. El dashboard es **CaféNorte — 4 respuestas**. Los usuarios demo son
 `admin`, `director` y `gerente_t001`; sus contraseñas se generan al crear `.env` y permanecen solo
-en `.env` (permisos 600). `gerente_t001` solo ve T001 en P2/P3/P4; P1 es un indicador de red y lo
-ven todos los roles.
+en `.env` (permisos 600). `gerente_t001` solo ve T001 en P2/P3/P4; `director` ve toda la red sin
+ser `Admin`; P1 es un indicador de red y lo ven todos los roles.
 
 ## Documentación
 

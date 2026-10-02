@@ -230,3 +230,13 @@ guarda metadatos y Redis cachea resultados. Los dashboards, roles y reglas RLS s
 **Verificación:** se fijaron imágenes multi-arquitectura con soporte `linux/arm64`; las credenciales
 y puertos se generan fuera del repositorio. La prueba de validación usa el login de la API de
 Superset y confirma la presencia del dashboard para los roles demo.
+
+### Prompt 15: Bloque D1-1, corrección de dashboard y RLS
+
+**Caso de error:** D1 reportó PASS con un dashboard vacío y un supuesto test de RLS que solo leía
+texto del YAML; además, la cláusula declarada no servía para P3 porque P3 usa `channel`, no
+`tienda_id`. **Lección:** validar el comportamiento, no la declaración.
+
+**Corrección:** el bootstrap ahora registra `CafeNorte analytics`, crea cinco datasets, cinco
+gráficas y filtros `RowLevelSecurityFilter` reales. La prueba consulta `/api/v1/chart/data` como
+gerente y director, comprueba T001/ONLINE y conserva un control negativo sin filtro.

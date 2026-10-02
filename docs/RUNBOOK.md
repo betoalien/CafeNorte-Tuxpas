@@ -58,6 +58,10 @@ Superset usa `superset_meta` para metadatos, Redis para caché y `superset_ro` p
 versiones fijadas son `apache/superset:4.1.1` y `redis:7.2.7-alpine3.21`; ambas imágenes incluyen
 `linux/arm64`.
 
+Redis solo está expuesto dentro de la red Compose. Las respuestas CSV se exportan sin `built_at`;
+el timestamp sigue disponible en las tablas Gold y la exportación se ejecuta como parte del
+harness sin producir cambios por tiempo en Git.
+
 ## Fallos
 
 - Un contrato invalido bloquea la fuente afectada.
