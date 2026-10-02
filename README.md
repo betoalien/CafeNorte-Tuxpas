@@ -49,6 +49,14 @@ reporta `./scripts/status.sh`. El dashboard es **CaféNorte — 4 respuestas**. 
 en `.env` (permisos 600). `gerente_t001` solo ve T001 en P2/P3/P4; `director` ve toda la red sin
 ser `Admin`; P1 es un indicador de red y lo ven todos los roles.
 
+## Datos nuevos
+
+`start.sh` compara SHA-256 contra la última corrida exitosa. Si no cambió ninguna fuente usa
+`skipped` y conserva Silver/Gold; con cambios compatibles por clave usa `incremental`; una fila
+modificada o eliminada fuerza `full` para esa fuente. `uv run python -m cafenorte.ingest --force`
+fuerza una carga completa. Las copias de prueba pueden vivir en `CAFENORTE_DATA_DIR`; `datos/`
+siempre se abre en solo lectura.
+
 ## Documentación
 
 - `docs/SYSTEM_MAP.md`: mapa conceptual.

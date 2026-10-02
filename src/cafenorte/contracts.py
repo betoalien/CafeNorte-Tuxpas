@@ -90,6 +90,7 @@ class Manifest(StrictModel):
     contract_version: str
     started_at: datetime
     completed_at: datetime
+    load_mode: Literal["skipped", "incremental", "full"] = "full"
 
     @field_validator("sha256_before", "sha256_after")
     @classmethod

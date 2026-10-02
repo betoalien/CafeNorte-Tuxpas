@@ -46,6 +46,13 @@ uv run python scripts/profile_sources.py
 
 Ese comando regenera `artifacts/evidence/profiling.md`; `validate.sh` no debe modificarlo.
 
+### Datos nuevos
+
+La ingestión registra `skipped`, `incremental` o `full` por fuente en manifest y run log. Sin
+cambios, `start.sh` no ejecuta dbt ni exporta respuestas. Con cambios, dbt hace build completo:
+a este volumen tarda segundos y no se justifican modelos incrementales de dbt. Para pruebas usa
+`CAFENORTE_DATA_DIR=/ruta/a/una/copia`; nunca se modifica `datos/`.
+
 ### status.sh
 
 Muestra contenedores, healthcheck, último `run_id`, conteos de ejecución, filas Silver, versión dbt

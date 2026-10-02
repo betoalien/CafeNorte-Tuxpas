@@ -30,7 +30,7 @@ from .contracts import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-DATA = ROOT / "datos"
+DATA = Path(os.environ.get("CAFENORTE_DATA_DIR", str(ROOT / "datos")))
 MANIFEST_DIR = ROOT / "artifacts" / "manifests"
 T = TypeVar("T")
 
@@ -102,10 +102,11 @@ def source_manifest(
     rejected: int,
     sha_before: str,
     sha_after: str,
+    load_mode: str = "full",
 ) -> Manifest:
     return Manifest(
         run_id=run_id,
-        source_file=str(path.relative_to(ROOT)),
+        source_file=str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else path.name,
         sha256_before=sha_before,
         sha256_after=sha_after,
         size_bytes=path.stat().st_size,
@@ -115,6 +116,7 @@ def source_manifest(
         contract_version=CONTRACT_VERSION,
         started_at=started,
         completed_at=now(),
+        load_mode=load_mode,
     )
 
 
@@ -133,15 +135,18 @@ CREATE TABLE IF NOT EXISTS audit.run_log (
   run_id uuid PRIMARY KEY, started_at timestamptz NOT NULL, completed_at timestamptz,
   status text NOT NULL, input_count bigint NOT NULL DEFAULT 0,
   accepted_count bigint NOT NULL DEFAULT 0, rejected_count bigint NOT NULL DEFAULT 0,
-  error_message text
+  error_message text, load_mode text NOT NULL DEFAULT 'full'
 );
 CREATE TABLE IF NOT EXISTS audit.ingestion_manifest (
   run_id uuid NOT NULL, source_file text NOT NULL, sha256_before text NOT NULL,
   sha256_after text NOT NULL, size_bytes bigint NOT NULL, input_count bigint NOT NULL,
   accepted_count bigint NOT NULL, rejected_count bigint NOT NULL, contract_version text NOT NULL,
   started_at timestamptz NOT NULL, completed_at timestamptz NOT NULL,
+  load_mode text NOT NULL DEFAULT 'full',
   PRIMARY KEY (run_id, source_file)
 );
+ALTER TABLE audit.run_log ADD COLUMN IF NOT EXISTS load_mode text NOT NULL DEFAULT 'full';
+ALTER TABLE audit.ingestion_manifest ADD COLUMN IF NOT EXISTS load_mode text NOT NULL DEFAULT 'full';
 CREATE TABLE IF NOT EXISTS audit.quarantine (
   quarantine_id bigserial PRIMARY KEY, source text NOT NULL, record_key text NOT NULL,
   reason text NOT NULL, payload jsonb NOT NULL, run_id uuid NOT NULL,
@@ -152,42 +157,63 @@ CREATE TABLE IF NOT EXISTS silver.pos_sales (
   fecha_hora_normalizada timestamp NOT NULL,
   tienda_id text NOT NULL, sku text NOT NULL, product_number text, cantidad bigint NOT NULL,
   monto numeric(18,2) NOT NULL, moneda text NOT NULL, tipo_comprobante text NOT NULL,
-  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL
+  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.stores (
   tienda_id text PRIMARY KEY, ciudad text NOT NULL, region text NOT NULL, timezone text NOT NULL,
-  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL
+  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.products (
   sku_erp text PRIMARY KEY, product_number text, nombre text NOT NULL, categoria text NOT NULL,
-  cost_history jsonb NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL
+  cost_history jsonb NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.sku_mappings (
   sku_pos text PRIMARY KEY, sku_erp text, handle text, run_id uuid NOT NULL,
-  ingested_at timestamptz NOT NULL
+  ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.inventory_snapshots (
   fecha date NOT NULL, tienda_id text NOT NULL, sku_erp text NOT NULL, stock_quantity integer,
   stock_raw_value text NOT NULL, quality_status text NOT NULL, quality_reason text NOT NULL,
-  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, PRIMARY KEY (fecha, tienda_id, sku_erp)
+  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT '', PRIMARY KEY (fecha, tienda_id, sku_erp)
 );
 CREATE TABLE IF NOT EXISTS silver.ecommerce_orders (
   order_id text PRIMARY KEY, fecha timestamp NOT NULL, product_handle text NOT NULL,
   product_number text,
   handle_name_normalized text NOT NULL, cantidad bigint NOT NULL, amount numeric(18,2) NOT NULL,
-  currency text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL
+  currency text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.exchange_rates (
   fecha date NOT NULL, currency text NOT NULL, rate_to_mxn numeric(18,6) NOT NULL,
-  fx_quality_flag text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL,
+  fx_quality_flag text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT '',
   PRIMARY KEY (fecha, currency)
 );
+ALTER TABLE silver.pos_sales ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
+ALTER TABLE silver.stores ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
+ALTER TABLE silver.products ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
+ALTER TABLE silver.sku_mappings ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
+ALTER TABLE silver.inventory_snapshots ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
+ALTER TABLE silver.ecommerce_orders ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
+ALTER TABLE silver.exchange_rates ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
 """
 
 
 def insert_rows(cur: psycopg.Cursor, sql: str, rows: list[tuple[Any, ...]]) -> None:
     if rows:
         cur.executemany(sql, rows)
+
+
+def add_row_hashes(data: dict[str, list[tuple[Any, ...]]]) -> None:
+    for name, rows in data.items():
+        data[name] = [
+            row[:-2]
+            + row[-2:]
+            + (row_hash(row[:-2]),)
+            for row in rows
+        ]
+
+
+def row_hash(values: tuple[Any, ...]) -> str:
+    return hashlib.sha256(json.dumps(values, default=str, sort_keys=True).encode()).hexdigest()
 
 
 def ensure_tables() -> None:
@@ -205,6 +231,7 @@ def load(
 ) -> None:
     with connect() as conn, conn.cursor() as cur:
         cur.execute(DDL)
+        add_row_hashes(data)
         cur.execute("DELETE FROM silver.pos_sales")
         cur.execute("DELETE FROM silver.stores")
         cur.execute("DELETE FROM silver.products")
@@ -214,28 +241,28 @@ def load(
         cur.execute("DELETE FROM silver.exchange_rates")
         insert_rows(
             cur,
-            "INSERT INTO silver.pos_sales VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO silver.pos_sales VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             data["sales"],
         )
-        insert_rows(cur, "INSERT INTO silver.stores VALUES (%s,%s,%s,%s,%s,%s)", data["stores"])
+        insert_rows(cur, "INSERT INTO silver.stores VALUES (%s,%s,%s,%s,%s,%s,%s)", data["stores"])
         insert_rows(
-            cur, "INSERT INTO silver.products VALUES (%s,%s,%s,%s,%s,%s,%s)", data["products"]
+            cur, "INSERT INTO silver.products VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", data["products"]
         )
         insert_rows(
-            cur, "INSERT INTO silver.sku_mappings VALUES (%s,%s,%s,%s,%s)", data["mappings"]
+            cur, "INSERT INTO silver.sku_mappings VALUES (%s,%s,%s,%s,%s,%s)", data["mappings"]
         )
         insert_rows(
             cur,
-            "INSERT INTO silver.inventory_snapshots VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO silver.inventory_snapshots VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             data["snapshots"],
         )
         insert_rows(
             cur,
-            "INSERT INTO silver.ecommerce_orders VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO silver.ecommerce_orders VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             data["orders"],
         )
         insert_rows(
-            cur, "INSERT INTO silver.exchange_rates VALUES (%s,%s,%s,%s,%s,%s)", data["rates"]
+            cur, "INSERT INTO silver.exchange_rates VALUES (%s,%s,%s,%s,%s,%s,%s)", data["rates"]
         )
         hashes_after = {path: sha256(path) for path in source_paths}
         changed = [path for path in source_paths if hashes_before[path] != hashes_after[path]]
@@ -261,14 +288,14 @@ def load(
         )
         insert_rows(
             cur,
-            "INSERT INTO audit.ingestion_manifest VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO audit.ingestion_manifest VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             [tuple(m.model_dump().values()) for m in manifests],
         )
         total_input = sum(m.input_count for m in manifests)
         total_accepted = sum(m.accepted_count for m in manifests)
         total_rejected = sum(m.rejected_count for m in manifests)
         cur.execute(
-            "INSERT INTO audit.run_log VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            "INSERT INTO audit.run_log VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (
                 run_id,
                 manifests[0].started_at,
@@ -278,6 +305,7 @@ def load(
                 total_accepted,
                 total_rejected,
                 None,
+                manifests[0].load_mode,
             ),
         )
 
@@ -304,7 +332,17 @@ def record_failed(run_id: UUID, started: datetime, error: Exception) -> None:
             )
     except psycopg.Error:
         # A failed connection before init cannot create an audit row.
-        pass
+            pass
+
+
+def record_skipped(run_id: UUID, started: datetime) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO audit.run_log "
+            "(run_id, started_at, completed_at, status, load_mode) "
+            "VALUES (%s, %s, %s, 'skipped', 'skipped')",
+            (run_id, started, now()),
+        )
 
 
 def snapshot_to_silver(
@@ -324,7 +362,7 @@ def snapshot_to_silver(
     )
 
 
-def _run(run_id: UUID, started: datetime) -> None:
+def _run(run_id: UUID, started: datetime, force: bool = False) -> str:
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     paths = [
         DATA / "sales.csv",
@@ -337,6 +375,22 @@ def _run(run_id: UUID, started: datetime) -> None:
             raise FileNotFoundError(path)
     hashes_before = {path: sha256(path) for path in paths}
     ensure_tables()
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT source_file, sha256_after FROM audit.ingestion_manifest "
+            "WHERE run_id = (SELECT run_id FROM audit.run_log WHERE status = 'succeeded' "
+            "AND load_mode <> 'skipped' ORDER BY started_at DESC LIMIT 1)"
+        )
+        previous = {row[0]: row[1] for row in cur.fetchall()}
+    source_names = {
+        path: str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else path.name
+        for path in paths
+    }
+    if not force and previous and all(previous.get(source_names[path]) == digest for path, digest in hashes_before.items()):
+        record_skipped(run_id, started)
+        result = {"run_id": str(run_id), "load_mode": "skipped"}
+        print(json.dumps(result))
+        return "skipped"
     sales_rows = read_csv(paths[0])
     for row in sales_rows:
         row["cantidad"] = int(row["cantidad"])
@@ -531,6 +585,17 @@ def _run(run_id: UUID, started: datetime) -> None:
             for x in rates
         ],
     }
+    changed_paths = [path for path in paths if previous.get(source_names[path]) != hashes_before[path]]
+    load_mode = "full"
+    if previous and changed_paths and all(path == paths[0] for path in changed_paths):
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute("SELECT venta_id, row_hash FROM silver.pos_sales")
+            existing = dict(cur.fetchall())
+        incoming = {row[0]: row_hash(row[:-2]) for row in data["sales"]}
+        if set(existing).issubset(incoming) and all(existing[key] == incoming[key] for key in existing):
+            load_mode = "incremental"
+    for manifest in manifests:
+        manifest.load_mode = load_mode
     load(
         run_id,
         manifests,
@@ -543,16 +608,21 @@ def _run(run_id: UUID, started: datetime) -> None:
     (MANIFEST_DIR / f"{run_id}.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(
-        json.dumps({"run_id": str(run_id), "manifests": payload["manifests"]}, ensure_ascii=False)
-    )
+    result = {"run_id": str(run_id), "load_mode": load_mode, "manifests": payload["manifests"]}
+    print(json.dumps(result, ensure_ascii=False))
+    return load_mode
 
 
 def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--force", action="store_true", help="force a full Silver load")
+    args = parser.parse_args()
     run_id = uuid4()
     started = now()
     try:
-        _run(run_id, started)
+        _run(run_id, started, force=args.force)
     except Exception as error:
         record_failed(run_id, started, error)
         raise

@@ -4,7 +4,7 @@ with store_inventory as (
            count(stock_quantity) as valid_snapshot_count,
            count(*) as total_snapshot_count
     from {{ ref('fct_inventory_daily') }}
-    where fecha between '2025-10-01' and '2026-03-31'
+    where fecha between ({{ var('anchor_date') }}::date - interval '6 months' + interval '1 day') and {{ var('anchor_date') }}::date
     group by product_id, tienda_id
 ), inventory as (
     select product_id,
@@ -15,7 +15,7 @@ with store_inventory as (
 ), sold as (
     select product_id, sum(quantity) as units_sold
     from {{ ref('fct_sales') }}
-    where source_name = 'POS' and sale_date between '2025-10-01' and '2026-03-31'
+    where source_name = 'POS' and sale_date between ({{ var('anchor_date') }}::date - interval '6 months' + interval '1 day') and {{ var('anchor_date') }}::date
       and match_method <> 'unmatched'
     group by product_id
 ), ranked as (
@@ -26,6 +26,6 @@ with store_inventory as (
     from inventory i join sold s using (product_id)
 )
 select product_id, units_sold, average_valid_inventory_units, coverage,
-       inventory_turnover_ratio, ranking, '2025-10-01/2026-03-31'::text as period,
+       inventory_turnover_ratio, ranking, ({{ var('anchor_date') }}::date - interval '6 months' + interval '1 day')::date || '/' || {{ var('anchor_date') }}::date as period,
        now() as built_at, 'business_metrics.v1'::text as logic_version
 from ranked where ranking <= 10

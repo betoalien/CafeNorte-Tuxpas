@@ -134,9 +134,15 @@ while [[ "$attempt" -le 30 ]]; do
     # shellcheck disable=SC1090
     . "$env_file"
     set +a
-    uv run python -m cafenorte.ingest
-    uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt
-    uv run python -m cafenorte.export_answers
+    ingest_output="$(uv run python -m cafenorte.ingest)"
+    printf '%s\n' "$ingest_output"
+    load_mode="$(printf '%s\n' "$ingest_output" | uv run python -c 'import json,sys; print(json.load(sys.stdin)["load_mode"])')"
+    if [[ "$load_mode" != "skipped" ]]; then
+      uv run dbt build --project-dir dbt --profiles-dir dbt --target-path ../artifacts/evidence/dbt
+      uv run python -m cafenorte.export_answers
+    else
+      echo "No source changed; dbt build and answer export skipped."
+    fi
     bash "$project_root/scripts/status.sh"
     exit 0
   fi

@@ -1,2 +1,2 @@
 select day::date as date_day
-from generate_series('2024-10-01'::date, '2026-03-31'::date, interval '1 day') day
+from generate_series({{ var('anchor_date') }}::date - interval '18 months', {{ var('anchor_date') }}::date, interval '1 day') day

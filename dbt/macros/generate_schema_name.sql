@@ -4,5 +4,5 @@
 
 {% macro latest_successful_run_id() -%}
   (select run_id from {{ source('audit', 'run_log') }}
-   where status = 'succeeded' order by started_at desc limit 1)
+   where status = 'succeeded' and load_mode <> 'skipped' order by started_at desc limit 1)
 {%- endmacro %}

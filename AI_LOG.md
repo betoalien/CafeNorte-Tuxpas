@@ -240,3 +240,10 @@ texto del YAML; además, la cláusula declarada no servía para P3 porque P3 usa
 **Corrección:** el bootstrap ahora registra `CafeNorte analytics`, crea cinco datasets, cinco
 gráficas y filtros `RowLevelSecurityFilter` reales. La prueba consulta `/api/v1/chart/data` como
 gerente y director, comprueba T001/ONLINE y conserva un control negativo sin filtro.
+
+### Prompt 16: Bloque D1-2, modos de carga
+
+**Decisión del propietario:** conservar la transacción y el reemplazo full existentes, añadir la
+decisión temprana por SHA-256/clave/`row_hash`, y evitar modelos incrementales dbt porque este
+volumen reconstruye Gold en segundos. `skipped` no toca Silver ni ejecuta dbt/exportación;
+`incremental` admite solo claves nuevas y cambios o bajas fuerzan `full`.
