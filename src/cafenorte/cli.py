@@ -345,11 +345,37 @@ def start(args: argparse.Namespace) -> int:
     status()
     run([sys.executable, "scripts/run_report.py", "--no-browser"])
     if not args.no_browser and os.environ.get("CI", "").lower() != "true":
-        webbrowser.open(
-            f"http://127.0.0.1:{env['SUPERSET_PORT']}/superset/dashboard/cafenorte-4-respuestas/"
+        superset_url = (
+            f"http://127.0.0.1:{env['SUPERSET_PORT']}"
+            "/superset/dashboard/cafenorte-4-respuestas/"
         )
+        open_browser_target(superset_url)
+        open_browser_target((ROOT / "artifacts/reports/run_report.html").resolve().as_uri())
     print_superset(args.show_credentials, env)
     return 0
+
+
+def open_browser_target(uri: str) -> None:
+    if webbrowser.open(uri):
+        return
+    if sys.platform == "darwin":
+        command = ["open", uri]
+    elif os.name == "nt":
+        try:
+            os.startfile(uri)  # type: ignore[attr-defined]
+            return
+        except OSError:
+            command = []
+    elif "microsoft" in platform.uname().release.lower():
+        command = ["wslview", uri]
+    else:
+        command = ["xdg-open", uri]
+    try:
+        if command and subprocess.run(command, check=False).returncode == 0:
+            return
+    except OSError:
+        pass
+    print(f"No se pudo abrir automáticamente: {uri}")
 
 
 def print_superset(show: bool, env: dict[str, str]) -> None:
@@ -370,7 +396,10 @@ def print_superset(show: bool, env: dict[str, str]) -> None:
         print("\n".join(passwords))
     else:
         print("Contraseñas: ./scripts/credentials.sh (o start.sh --show-credentials)")
-    print(f"Reporte:    {ROOT / 'artifacts/reports/run_report.html'}")
+    print(
+        "Reporte (usuarios y contraseñas con botón Mostrar): "
+        f"{ROOT / 'artifacts/reports/run_report.html'}"
+    )
 
 
 def credentials() -> int:

@@ -69,3 +69,15 @@ def test_cli_step_plan_matches_bash_reference() -> None:
         missing = [step for step in expected if step not in actual]
         assert not missing, f"{command}: faltan pasos {missing}"
         assert actual == expected, f"{command}: orden distinto; actual={actual}"
+
+
+def test_browser_opens_superset_then_report(monkeypatch) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(cli.webbrowser, "open", lambda uri: opened.append(uri) or True)
+    superset = "http://127.0.0.1:59038/superset/dashboard/cafenorte-4-respuestas/"
+    report = (ROOT / "artifacts/reports/run_report.html").resolve().as_uri()
+
+    cli.open_browser_target(superset)
+    cli.open_browser_target(report)
+
+    assert opened == [superset, report]

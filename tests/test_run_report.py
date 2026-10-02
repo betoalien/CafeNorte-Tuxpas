@@ -17,6 +17,8 @@ _SPEC.loader.exec_module(run_report)
 
 
 def _assert_report(content: str) -> None:
+    assert "Mostrar" in content
+    assert "Copiar" in content
     assert content.count("<tr><td>") >= 4
     for href in re.findall(r"href=['\"]([^'\"]+)['\"]", content):
         if urlparse(href).scheme:
