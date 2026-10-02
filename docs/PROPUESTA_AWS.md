@@ -46,10 +46,10 @@ HTTPS a S3 mientras el proveedor valida sus capacidades.
 
 | Fase | Entrega | Riesgo y control |
 |---|---|---|
-| 1 | Contratos, S3 Bronze, secretos e ingesta | Exportación real del legacy; prueba de muestra y cuarentena |
-| 2 | Silver, PII, dbt y reconciliación | Costos/devoluciones; conciliación centavo a centavo |
-| 3 | Gold, Superset, OAuth/RLS y dashboards | RLS probado con datos reales |
-| 4 | Backup, alertas, FinOps y recuperación | Instancia única; snapshots + dump lógico a S3 |
+| 1 | Contratos, Bronze e ingesta | Exportación legacy; muestra y cuarentena |
+| 2 | Silver, PII y dbt | Costos/devoluciones; conciliación a centavos |
+| 3 | Gold, Superset y RLS | RLS probado con datos reales |
+| 4 | Backup, alertas y FinOps | Instancia única; snapshots y dump a S3 |
 
 La primera versión productiva no promete alta disponibilidad: Lightsail es una instancia única.
 Se escala a 8 GB o se separan metadatos si CPU/memoria supera 70% sostenido, p95 supera 10 s

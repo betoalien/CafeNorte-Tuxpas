@@ -45,3 +45,10 @@ Los artefactos de dbt quedan en `artifacts/evidence/dbt/`; la validacion no repo
 ## Clon limpio
 
 En `/private/tmp/cafenorte-d310-2E2Y5a/repo` se ejecutaron `uv sync`, `start.sh --no-browser`, `validate.sh` y una segunda `start.sh --no-browser`. La primera corrida fue exitosa con `dbt PASS=65`, `pytest 27 passed` y RLS PASS; la segunda reporto `load_mode=skipped`. El primer intento revelo la colision esperable de los `container_name` fijos; se repitio tras `docker compose down -v`, sin volumenes previos.
+
+## D3-10.1
+
+- Sin `per-file-ignores` ni `ignore` de E501 en `pyproject.toml`; `ruff check .`: PASS.
+- `grep -rn "noqa" src scripts superset tests`: sin resultados.
+- PDF regenerado: 2 paginas; `pdftotext -layout` muestra la tabla de fases completa en una sola pagina, con un solo encabezado `Fase` y cuatro filas legibles.
+- `./scripts/validate.sh`: dbt `PASS=65 WARN=0 ERROR=0 SKIP=0`, pytest `27 passed`, RLS PASS, Ruff PASS y ShellCheck PASS.

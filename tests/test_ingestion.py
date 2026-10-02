@@ -90,8 +90,13 @@ def test_latest_manifest_matches_source_hashes() -> None:
         """
         SELECT source_file, sha256_before, sha256_after
         FROM audit.ingestion_manifest
-        WHERE run_id = (SELECT run_id FROM audit.run_log WHERE status = 'succeeded' AND load_mode <> 'skipped'
-                        ORDER BY started_at DESC LIMIT 1)
+        WHERE run_id = (
+            SELECT run_id
+            FROM audit.run_log
+            WHERE status = 'succeeded' AND load_mode <> 'skipped'
+            ORDER BY started_at DESC
+            LIMIT 1
+        )
         ORDER BY source_file
         """
     )

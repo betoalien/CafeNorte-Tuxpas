@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 import sys
@@ -18,12 +19,17 @@ CSS = """
 body { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5pt;
        line-height: 1.22; color: #17202a; }
 h1 { font-size: 18pt; margin: 0 0 8pt; } h2 { font-size: 13pt; margin: 11pt 0 4pt; }
+h2 { break-after: avoid; page-break-after: avoid; }
 p { margin: 4pt 0; } ul { margin: 4pt 0; padding-left: 18pt; }
 pre { font: 9pt ui-monospace, SFMono-Regular, monospace; border: 1px solid #aaa;
-      padding: 6pt; white-space: pre-wrap; }
-table { border-collapse: collapse; width: 100%; margin: 5pt 0; }
+      padding: 6pt; white-space: pre-wrap; page-break-inside: avoid; break-inside: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 5pt 0;
+        page-break-inside: avoid; break-inside: avoid; }
 th, td { border: .5pt solid #888; padding: 3pt 4pt; }
 th { background: #e9eef2; } a { color: #145a86; }
+.phase-table th:nth-child(1), .phase-table td:nth-child(1) { width: 8%; text-align: center; }
+.phase-table th:nth-child(2), .phase-table td:nth-child(2) { width: 42%; }
+.phase-table th:nth-child(3), .phase-table td:nth-child(3) { width: 50%; }
 """
 
 
@@ -37,11 +43,36 @@ def markdown_html() -> str:
     body = markdown.markdown(
         SOURCE.read_text(encoding="utf-8"), extensions=["tables", "fenced_code"]
     )
-    return (
+    html = (
         "<!doctype html><html lang='es'><head><meta charset='utf-8'><style>"
         + CSS
         + f"</style></head><body>{body}</body></html>"
     )
+    return html.replace(
+        "<table>\n<thead>\n<tr>\n<th>Fase",
+        "<table class='phase-table'>\n<thead>\n<tr>\n<th>Fase",
+    )
+
+
+def verify_pdf_text(pdf_path: Path) -> None:
+    pdftotext = shutil.which("pdftotext")
+    if pdftotext is None:
+        print("pdftotext no disponible; se omite la verificacion de layout textual.")
+        return
+    with tempfile.TemporaryDirectory() as temporary:
+        text_path = Path(temporary) / "proposal.txt"
+        subprocess.run(
+            [pdftotext, "-layout", str(pdf_path), str(text_path)], check=True
+        )
+        text = text_path.read_text(encoding="utf-8")
+    if len(re.findall(r"\bFase\b", text)) != 1:
+        raise SystemExit("La tabla de fases aparece partida o tiene encabezados duplicados.")
+    for phase in ("1", "2", "3", "4"):
+        if not any(line.lstrip().startswith(f"{phase} ") for line in text.splitlines()):
+            raise SystemExit(f"Falta la fila de fase {phase} en el texto extraido.")
+    if sum(line.lstrip().startswith(tuple(f"{phase} " for phase in ("1", "2", "3", "4")))
+           for line in text.splitlines()) != 4:
+        raise SystemExit("Una fila de fases se partio en varias lineas.")
 
 
 def chrome_path() -> Path | None:
@@ -71,6 +102,7 @@ def main() -> int:
             ],
             check=True,
         )
+    verify_pdf_text(OUTPUT)
     print(f"PDF generado: {OUTPUT}")
     return 0
 

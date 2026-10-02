@@ -148,7 +148,8 @@ CREATE TABLE IF NOT EXISTS audit.ingestion_manifest (
   PRIMARY KEY (run_id, source_file)
 );
 ALTER TABLE audit.run_log ADD COLUMN IF NOT EXISTS load_mode text NOT NULL DEFAULT 'full';
-ALTER TABLE audit.ingestion_manifest ADD COLUMN IF NOT EXISTS load_mode text NOT NULL DEFAULT 'full';
+ALTER TABLE audit.ingestion_manifest ADD COLUMN IF NOT EXISTS load_mode text NOT NULL
+  DEFAULT 'full';
 CREATE TABLE IF NOT EXISTS audit.quarantine (
   quarantine_id bigserial PRIMARY KEY, source text NOT NULL, record_key text NOT NULL,
   reason text NOT NULL, payload jsonb NOT NULL, run_id uuid NOT NULL,
@@ -167,7 +168,8 @@ CREATE TABLE IF NOT EXISTS silver.stores (
 );
 CREATE TABLE IF NOT EXISTS silver.products (
   sku_erp text PRIMARY KEY, product_number text, nombre text NOT NULL, categoria text NOT NULL,
-  cost_history jsonb NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
+  cost_history jsonb NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL,
+  row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.sku_mappings (
   sku_pos text PRIMARY KEY, sku_erp text, handle text, run_id uuid NOT NULL,
@@ -176,17 +178,20 @@ CREATE TABLE IF NOT EXISTS silver.sku_mappings (
 CREATE TABLE IF NOT EXISTS silver.inventory_snapshots (
   fecha date NOT NULL, tienda_id text NOT NULL, sku_erp text NOT NULL, stock_quantity integer,
   stock_raw_value text NOT NULL, quality_status text NOT NULL, quality_reason text NOT NULL,
-  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT '', PRIMARY KEY (fecha, tienda_id, sku_erp)
+  run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT '',
+  PRIMARY KEY (fecha, tienda_id, sku_erp)
 );
 CREATE TABLE IF NOT EXISTS silver.ecommerce_orders (
   order_id text PRIMARY KEY, fecha timestamp NOT NULL, product_handle text NOT NULL,
   product_number text,
   handle_name_normalized text NOT NULL, cantidad bigint NOT NULL, amount numeric(18,2) NOT NULL,
-  currency text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT ''
+  currency text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL,
+  row_hash text NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS silver.exchange_rates (
   fecha date NOT NULL, currency text NOT NULL, rate_to_mxn numeric(18,6) NOT NULL,
-  fx_quality_flag text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL, row_hash text NOT NULL DEFAULT '',
+  fx_quality_flag text NOT NULL, run_id uuid NOT NULL, ingested_at timestamptz NOT NULL,
+  row_hash text NOT NULL DEFAULT '',
   PRIMARY KEY (fecha, currency)
 );
 ALTER TABLE silver.pos_sales ADD COLUMN IF NOT EXISTS row_hash text NOT NULL DEFAULT '';
