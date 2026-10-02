@@ -51,7 +51,7 @@ FROM (
 ORDER BY table_name;
 SQL
   if command -v uv >/dev/null 2>&1; then
-    uv run dbt --version | head -1
+    uv run dbt --version | sed 's/^Core:/dbt:/' | head -1
   fi
   printf 'Gold (analytics):\n'
   docker compose --env-file "$env_file" exec -T postgres sh -c \

@@ -4,6 +4,15 @@ set -euo pipefail
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$project_root"
 
+no_browser=0
+for argument in "$@"; do
+  case "$argument" in
+    --no-browser) no_browser=1 ;;
+    *) echo "Unknown option: $argument" >&2; exit 1 ;;
+  esac
+done
+bash "$project_root/scripts/doctor.sh"
+
 env_file="${ENV_FILE:-.env}"
 
 random_port() {
@@ -160,6 +169,9 @@ while [[ "$attempt" -le 30 ]]; do
     done
     [[ "$superset_health" == "healthy" ]] || { docker compose --env-file "$env_file" logs superset; echo "Superset did not become healthy after 60 seconds." >&2; exit 1; }
     bash "$project_root/scripts/status.sh"
+    report_args=()
+    if [[ "$no_browser" -eq 1 ]]; then report_args+=(--no-browser); fi
+    uv run python scripts/run_report.py "${report_args[@]}"
     exit 0
   fi
   sleep 2

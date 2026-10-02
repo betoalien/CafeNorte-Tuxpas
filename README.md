@@ -1,5 +1,7 @@
 # CaféNorte Data Platform Challenge
 
+[![CI](https://github.com/betoalien/CafeNorte-Tuxpas/actions/workflows/ci.yml/badge.svg)](https://github.com/betoalien/CafeNorte-Tuxpas/actions/workflows/ci.yml)
+
 ## Qué Resuelve
 
 - **P1:** los tres primeros son `057-C` (1.362), `012-B` (1.226) y `041-D` (1.201) en rotación de red.
@@ -53,8 +55,18 @@ pequeños usan `full`. Para probar copias, usa `CAFENORTE_DATA_DIR`; `datos/` nu
 - `tiendas_info` es el maestro y sus tiendas/regiones fuera del relato se reportan, no se corrigen silenciosamente.
 - Shopify contiene PII que se excluye de Silver y Gold; la hora POS se trata como hora local de tienda y dbt puede usar la zona del maestro.
 - Se supone que `monto` es neto sin IVA y que las fechas de las fuentes son comparables para el ancla común.
+- En plataformas sin binario PardoX, `validate.sh` reporta `PardoX: UNSUPPORTED_PLATFORM (<os>-<arch>)`,
+  omite solo sus pruebas y conserva la validación del pipeline Polars. En plataformas soportadas,
+  la paridad PardoX sigue siendo obligatoria.
 
 **Costo AWS:** la propuesta estimada es **USD 34.49/mes** con contingencia; ver [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md).
+
+## Plataformas probadas
+
+- macOS arm64: validación manual completa.
+- Ubuntu x86_64: validación continua en GitHub Actions.
+- WSL2: Ubuntu x86_64, ejecutando el repositorio dentro del filesystem Linux.
+- Linux ARM64: PardoX no disponible; Polars sigue siendo el pipeline principal.
 
 ## Capas
 

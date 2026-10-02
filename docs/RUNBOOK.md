@@ -54,6 +54,18 @@ versionados en `datos/SHA256SUMS`. Para verificar desde la raíz: en macOS ejecu
 `(cd datos && sha256sum -c SHA256SUMS)`. `validate.sh` ejecuta automáticamente el comando apropiado
 y falla con `fuente original del cliente modificada` ante cualquier diferencia.
 
+### Portabilidad y PardoX
+
+`start.sh` y `validate.sh` ejecutan primero `scripts/doctor.sh`, que comprueba Docker, Compose v2,
+uv, OpenSSL, ShellCheck y la herramienta de puertos del sistema. En WSL el repositorio debe estar
+fuera de `/mnt/`, dentro del filesystem Linux. Si la plataforma no tiene binario PardoX, la salida
+incluye `PardoX: UNSUPPORTED_PLATFORM (<os>-<arch>)`; se omiten únicamente las pruebas PardoX y el
+pipeline Polars conserva exit 0 si el resto pasa. En plataformas soportadas, la paridad es obligatoria.
+
+Cada arranque genera `artifacts/reports/run_report.html`, un reporte estático ignorado por Git con
+run_id, modos, duración, conteos, validación, respuestas, URL de Superset y enlaces de revisión.
+Usa `--no-browser` o `CI=true` para imprimir solo la ruta.
+
 ### Datos nuevos
 
 La ingestión registra `skipped`, `incremental` o `full` por fuente en manifest y run log. Sin
