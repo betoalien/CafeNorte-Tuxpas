@@ -354,3 +354,14 @@ wheel instalado `pardox==0.3.4` no exporta el símbolo Python. La llamada docume
 motor. Se conserva `.prdx` para la ruta instalada y se registra esta diferencia entre el código fuente
 del core y el binario distribuido. Para medir Parquet nativo habrá que reconstruir/reinstalar el binding
 con el símbolo exportado y repetir la evidencia.
+
+### Prompt 25: Bloque D2-5, diagnóstico PRDX x10
+
+**Caso de error:** `write_sql_prdx` produjo 721 grupos tienda x mes frente a 720 en x10. La guarda
+de paridad lo detectó aunque conteos y sumas globales coincidían. `load_prdx` mostró el mismo fallo
+antes de PostgreSQL; x2 pasa y x5/x10 fallan de forma determinista. La inspección del core local
+apunta a offsets UTF-8 concatenados entre bloques sin acumulación del offset.
+
+**Decisión:** excluir `write_sql_prdx` de la tabla certificada x10 y entregar una reproducción
+versionada. El hallazgo fue reportado al propietario de PardoX como bug de PardoX 0.3.4. No se
+modificó el motor ni su instalación.

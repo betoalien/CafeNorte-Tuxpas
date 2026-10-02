@@ -20,10 +20,19 @@ Llamadas: Polars `read_csv`, cast/filtros, `str.extract`/`str.slice`, `group_by`
 
 ## 864,900 filas
 
-La copia temporal tuvo 864,900 filas y venta_id único. La guarda obligatoria falló en
-`write_sql_prdx`: Polars/Python produjeron 720 grupos tienda x mes y PRDX produjo 721. Los totales
-globales PRDX sí coincidieron: `864900`, `1333830`, `309472538.20`. El benchmark termina con error y
-no publica tiempos x10 como resultados certificados.
+Medianas en segundos, seis corridas alternadas. Polars, PardoX `to_sql` y Python conservaron la
+paridad:
+
+| Engine | Read | Validate | Transform | Aggregate | Load | Write | Total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Polars | 0.040232 | 0.002313 | 0.013208 | 0.007033 | 2.032776 | 0.128205 | 2.664857 |
+| PardoX `to_sql` | 0.058213 | 0.037149 | 0.030424 | 0.026622 | 1.385163 | 0.092868 | 1.964213 |
+| Python psycopg | 0.955383 | 0.442274 | 0.355841 | 0.134486 | 10.385064 | 1.178339 | 13.858283 |
+
+`PardoX write_sql_prdx` queda excluido a x10: produjo 721 grupos tienda x mes frente a 720.
+La reproducción está en `pardox-0.3.4-prdx-repro/`. En 0.3.4 la transformación PardoX no
+extrae mes ni aplica regex equivalente, por lo que hace menos trabajo que Polars y sus milisegundos
+no representan un procesamiento equivalente.
 
 ## Interpretación
 

@@ -85,7 +85,9 @@ def rls(role_item, table_item, name, clause):
         .one_or_none()
     )
     if item is None:
-        item = RowLevelSecurityFilter(name=name, group_key=role_item.name, clause=clause, filter_type="Regular")
+        item = RowLevelSecurityFilter(
+            name=name, group_key=role_item.name, clause=clause, filter_type="Regular"
+        )
         db.session.add(item)
     item.clause = clause
     item.filter_type = "Regular"
@@ -107,9 +109,14 @@ def main():
         user("director", os.environ["DIRECTOR_PASSWORD"], [alpha, director])
         user("gerente_t001", os.environ["GERENTE_T001_PASSWORD"], [gamma, gerente])
 
-        database = db.session.query(Database).filter_by(database_name="CafeNorte analytics").one_or_none()
+        database = (
+            db.session.query(Database).filter_by(database_name="CafeNorte analytics").one_or_none()
+        )
         if database is None:
-            database = Database(database_name="CafeNorte analytics", sqlalchemy_uri=os.environ["SUPERSET_ANALYTICS_DB"])
+            database = Database(
+                database_name="CafeNorte analytics",
+                sqlalchemy_uri=os.environ["SUPERSET_ANALYTICS_DB"],
+            )
             db.session.add(database)
             db.session.flush()
         database.sqlalchemy_uri = os.environ["SUPERSET_ANALYTICS_DB"]
@@ -126,21 +133,58 @@ def main():
         }
         security = current_app.appbuilder.sm
         for table in tables.values():
-            permission_view = security.add_permission_view_menu("datasource_access", table.get_perm())
+            permission_view = security.add_permission_view_menu(
+                "datasource_access", table.get_perm()
+            )
             security.add_permission_role(director, permission_view)
             security.add_permission_role(gerente, permission_view)
         charts = [
-            chart("P1 · Rotación top 10", tables["mart_inventory_turnover_top10"], "bar", '{"groupby": ["product_id"], "metrics": ["inventory_turnover_ratio"], "row_limit": 10}'),
-            chart("P2 · Stockouts > 3 días", tables["mart_stockouts_over_3_days"], "table", '{"all_columns": ["tienda_id", "product_id", "start_date", "end_date", "days"]}'),
-            chart("P3 · Crecimiento por canal", tables["mart_monthly_channel_growth"], "echarts_timeseries", '{"groupby": ["month_start", "channel"], "metrics": ["sales_mxn"]}'),
-            chart("P4 · Margen negativo", tables["mart_negative_margin_products"], "table", '{"all_columns": ["product_id", "tienda_id", "units", "sales_mxn", "gross_margin_mxn"]}'),
-            chart("Reconciliación de fuentes", tables["mart_source_reconciliation"], "table", '{"all_columns": ["source_name", "period", "product_id", "input_rows", "certified_rows", "excluded_rows"]}'),
+            chart(
+                "P1 · Rotación top 10",
+                tables["mart_inventory_turnover_top10"],
+                "bar",
+                '{"groupby": ["product_id"], "metrics": ["inventory_turnover_ratio"], '
+                '"row_limit": 10}',
+            ),
+            chart(
+                "P2 · Stockouts > 3 días",
+                tables["mart_stockouts_over_3_days"],
+                "table",
+                '{"all_columns": ["tienda_id", "product_id", "start_date", "end_date", "days"]}',
+            ),
+            chart(
+                "P3 · Crecimiento por canal",
+                tables["mart_monthly_channel_growth"],
+                "echarts_timeseries",
+                '{"groupby": ["month_start", "channel"], "metrics": ["sales_mxn"]}',
+            ),
+            chart(
+                "P4 · Margen negativo",
+                tables["mart_negative_margin_products"],
+                "table",
+                '{"all_columns": ["product_id", "tienda_id", "units", "sales_mxn", '
+                '"gross_margin_mxn"]}',
+            ),
+            chart(
+                "Reconciliación de fuentes",
+                tables["mart_source_reconciliation"],
+                "table",
+                '{"all_columns": ["source_name", "period", "product_id", "input_rows", '
+                '"certified_rows", "excluded_rows"]}',
+            ),
         ]
         rls(gerente, tables["mart_stockouts_over_3_days"], "gerente_t001_p2", "tienda_id = 'T001'")
-        rls(gerente, tables["mart_negative_margin_products"], "gerente_t001_p4", "tienda_id = 'T001'")
+        rls(
+            gerente,
+            tables["mart_negative_margin_products"],
+            "gerente_t001_p4",
+            "tienda_id = 'T001'",
+        )
         rls(gerente, tables["mart_monthly_channel_growth"], "gerente_t001_p3", "channel = 'T001'")
 
-        dashboard = db.session.query(Dashboard).filter_by(slug="cafenorte-4-respuestas").one_or_none()
+        dashboard = (
+            db.session.query(Dashboard).filter_by(slug="cafenorte-4-respuestas").one_or_none()
+        )
         if dashboard is None:
             dashboard = Dashboard(
                 dashboard_title="CaféNorte — 4 respuestas",
@@ -152,7 +196,14 @@ def main():
             db.session.add(dashboard)
         dashboard.roles = [director, gerente]
         dashboard.slices = charts
-        dashboard.position_json = "{" + ",".join(f'\"CHART-{item.id}\": {{\"meta\": {{\"sliceName\": \"{item.slice_name}\"}}}}' for item in charts) + "}"
+        dashboard.position_json = (
+            "{"
+            + ",".join(
+                f'"CHART-{item.id}": {{"meta": {{"sliceName": "{item.slice_name}"}}}}'
+                for item in charts
+            )
+            + "}"
+        )
         db.session.commit()
 
 
