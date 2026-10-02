@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# ruff: noqa: E501
 import re
 import tomllib
 from pathlib import Path
@@ -15,7 +14,11 @@ def test_tech_stack_links_and_versions_match_repo() -> None:
         assert (DOC.parent / target).resolve().exists(), target
 
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    dependencies = {item.split("==", 1)[0]: item.split("==", 1)[1] for item in pyproject["project"]["dependencies"] if "==" in item}
+    dependencies = {
+        item.split("==", 1)[0]: item.split("==", 1)[1]
+        for item in pyproject["project"]["dependencies"]
+        if "==" in item
+    }
     lock = (ROOT / "uv.lock").read_text(encoding="utf-8")
     expected = {
         "Pydantic": ("pydantic", dependencies["pydantic"]),

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# ruff: noqa: E501
 import html
 import importlib.util
 import os
@@ -23,14 +22,22 @@ def _assert_report(content: str) -> None:
         if urlparse(href).scheme:
             continue
         assert (ROOT / "artifacts/reports" / href).resolve().exists(), href
-    secrets = [os.environ.get(name, "") for name in ("SUPERSET_ADMIN_PASSWORD", "DIRECTOR_PASSWORD", "GERENTE_T001_PASSWORD")]
+    secrets = [
+        os.environ.get(name, "")
+        for name in ("SUPERSET_ADMIN_PASSWORD", "DIRECTOR_PASSWORD", "GERENTE_T001_PASSWORD")
+    ]
     hidden = content.split("<div id='credentials'>", 1)[1].split("</div>", 1)[0]
     visible = content.replace(hidden, "")
     for secret in secrets:
         if secret:
             assert secret not in visible
-    with psycopg.connect(**run_report.conn_kwargs("superset_ro", "SUPERSET_RO_PASSWORD")) as conn, conn.cursor() as cur:
-        cur.execute("SELECT product_id, round(sum(gross_margin_mxn), 2) FROM analytics.mart_negative_margin_products GROUP BY product_id ORDER BY sum(gross_margin_mxn)")
+    with (
+        psycopg.connect(**run_report.conn_kwargs("superset_ro", "SUPERSET_RO_PASSWORD")) as conn,
+        conn.cursor() as cur,
+    ):
+        cur.execute(
+            "SELECT product_id, round(sum(gross_margin_mxn), 2) FROM analytics.mart_negative_margin_products GROUP BY product_id ORDER BY sum(gross_margin_mxn)"  # noqa: E501
+        )
         for product, margin in cur.fetchall():
             assert html.escape(str(product)) in content
             assert f"{margin:,.2f}".rstrip("0").rstrip(".") in content

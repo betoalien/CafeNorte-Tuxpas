@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# ruff: noqa: E501
 import importlib.util
 import os
 from pathlib import Path
@@ -34,7 +33,12 @@ def test_env_generation_is_idempotent(tmp_path, monkeypatch) -> None:
 
 
 def test_default_superset_output_does_not_print_passwords(capsys, monkeypatch) -> None:
-    values = {"SUPERSET_PORT": "23456", "SUPERSET_ADMIN_PASSWORD": "admin-secret", "DIRECTOR_PASSWORD": "director-secret", "GERENTE_T001_PASSWORD": "manager-secret"}
+    values = {
+        "SUPERSET_PORT": "23456",
+        "SUPERSET_ADMIN_PASSWORD": "admin-secret",
+        "DIRECTOR_PASSWORD": "director-secret",
+        "GERENTE_T001_PASSWORD": "manager-secret",
+    }
     monkeypatch.setattr(cli, "print_superset", cli.print_superset)
     cli.print_superset(False, values)
     output = capsys.readouterr().out
