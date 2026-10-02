@@ -35,3 +35,25 @@ jobs:
           bash -n scripts/*.sh
           ./scripts/start.sh --no-browser
           ./scripts/start.sh
+
+  cli-platforms:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            docker: false
+          - os: macos-latest
+            docker: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+      - name: Install dependencies
+        run: uv sync
+      - name: CLI tests
+        run: uv run pytest tests/test_cli.py
+      - name: Doctor (Docker not required in this matrix)
+        continue-on-error: true
+        run: uv run cafenorte doctor

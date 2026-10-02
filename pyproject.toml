@@ -17,6 +17,9 @@ dependencies = [
 requires = ["setuptools>=70"]
 build-backend = "setuptools.build_meta"
 
+[project.scripts]
+cafenorte = "cafenorte.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

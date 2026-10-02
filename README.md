@@ -25,6 +25,11 @@ transacciones, trazabilidad y serving; dbt posee conciliación, FX, costos y mé
 consulta Gold. Redis se limita a caché de Superset. PardoX demuestra una alternativa de motor sin
 convertirse en dependencia del camino crítico.
 
+## Stack y metodología
+
+La explicación de las decisiones, versiones, metodología y recorrido de un registro está en
+[`docs/TECH_STACK.md`](docs/TECH_STACK.md).
+
 ## Estado
 
 Bloques A, A-1, B, C y D1 implementados. D2 queda entregado como ruta experimental documentada;
@@ -32,11 +37,19 @@ PardoX no reemplaza Silver cuando falla una guarda de paridad.
 
 ## Ver los dashboards
 
-Después de `./scripts/start.sh`, abre `http://127.0.0.1:<SUPERSET_PORT>` usando el puerto que
-reporta `./scripts/status.sh`. El dashboard es **CaféNorte — 4 respuestas**. Los usuarios demo son
-`admin`, `director` y `gerente_t001`; sus contraseñas se generan al crear `.env` y permanecen solo
-en `.env` (permisos 600). `gerente_t001` solo ve T001 en P2/P3/P4; `director` ve toda la red sin
-ser `Admin`; P1 es un indicador de red y lo ven todos los roles.
+Después de `./scripts/start.sh`, el bloque **Superset listo** imprime la URL directa del dashboard
+**CaféNorte — 4 respuestas**, los usuarios y la ruta del reporte. Las contraseñas se consultan con
+`./scripts/credentials.sh` o, explícitamente, con `./scripts/start.sh --show-credentials`; se generan
+en `.env` con permisos 600. `gerente_t001` solo ve T001 en P2/P3/P4; `director` ve toda la red
+incluido ONLINE; `admin` queda para administración. También puede abrirse directamente la URL que
+aparece en el bloque usando el puerto real de `.env`.
+
+### CLI multiplataforma
+
+Los comandos oficiales también están disponibles sin depender de Bash: `uv run cafenorte start`,
+`stop`, `restart`, `status`, `validate`, `reset --yes`, `credentials`, `doctor` y `report`.
+En Windows nativo usa `scripts/windows/*.bat`; Docker Desktop debe estar configurado con Linux
+containers. WSL2 sigue siendo una alternativa y debe usar el repositorio dentro del filesystem Linux.
 
 ## Datos Nuevos
 
@@ -68,6 +81,8 @@ pequeños usan `full`. Para probar copias, usa `CAFENORTE_DATA_DIR`; `datos/` nu
   se reporta `UNSUPPORTED_PLATFORM` sin tumbar Polars.
 - Ubuntu x86_64: validación continua en GitHub Actions.
 - WSL2: Ubuntu x86_64, ejecutando el repositorio dentro del filesystem Linux.
+- Windows nativo: flujo completo soportado, no verificado en CI; usa Docker Desktop con contenedores Linux.
+- Linux ARM64: pipeline Polars soportado; PardoX no está disponible en esa plataforma.
 - Linux ARM64: PardoX no disponible; Polars sigue siendo el pipeline principal.
 
 En Apple Silicon, Python bajo Rosetta reporta `x86_64` y puede intentar cargar el binario Intel;
@@ -177,6 +192,22 @@ docker compose version
 ```
 
 `lsof`, que usa `start.sh` para comprobar que el puerto esté libre, ya viene con macOS.
+
+### Windows 10/11 nativo
+
+En PowerShell instala Docker Desktop, Git y uv (`winget install astral-sh.uv` o el instalador
+oficial). Después:
+
+```powershell
+git clone <repositorio>
+cd CafeNorte-Tuxpas
+uv sync
+uv run cafenorte start
+uv run cafenorte validate
+```
+
+Docker Desktop debe usar **Linux containers**. En Windows nativo el CLI usa `icacls` para proteger
+`.env`; en macOS/Linux usa permisos `600`. Los equivalentes `.bat` viven en `scripts/windows/`.
 
 ### Windows 10/11 (mediante WSL2)
 

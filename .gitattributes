@@ -6,5 +6,7 @@
 *.toml text eol=lf
 *.md text eol=lf
 *.json text eol=lf
+superset/** text eol=lf
+docker/** text eol=lf
 *.csv text eol=lf
 *.parquet binary

@@ -402,3 +402,12 @@ verificación de cifras del README en D3-1 detectó la discrepancia.
 **Corrección y lección:** P4 usa ahora el mismo intervalo de fecha que P3 y un test singular valida
 las tres magnitudes con tolerancia de 0.01. Hay que verificar magnitudes, no solo identidades, y la
 etiqueta de una métrica debe corresponder a su cálculo.
+
+### D3-6: CLI multiplataforma
+
+**Decisión del propietario:** la orquestación se expone también como `uv run cafenorte` para que
+Windows nativo no dependa de Bash; los scripts `.sh` y `.bat` quedan como envoltorios oficiales.
+La lógica de generación de `.env`, puertos, Docker, healthchecks, reporte y credenciales vive en
+`src/cafenorte/cli.py`. Windows usa `icacls` para el ACL local de `.env`; macOS/Linux usan `600`.
+La matriz de Windows de CI prueba el CLI sin Docker porque GitHub Actions no ejecuta allí el flujo
+de contenedores Linux.

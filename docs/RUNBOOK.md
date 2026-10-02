@@ -13,6 +13,12 @@ Redis/Superset e importa el dashboard versionado de `superset/`, y exporta las c
 
 Detiene servicios sin borrar datos generados, evidencia ni volumenes.
 
+Todos los comandos tienen un orquestador Python multiplataforma equivalente: `uv run cafenorte
+start|stop|restart|status|validate|doctor|credentials|report` y `uv run cafenorte reset --yes`.
+Los `.sh` y `scripts/windows/*.bat` son envoltorios; en Windows nativo el CLI usa `icacls` para
+proteger `.env` y requiere Docker Desktop con Linux containers. La matriz Windows de CI valida el
+CLI sin levantar contenedores; la integración completa se ejecuta localmente.
+
 ### restart.sh
 
 Compone `stop.sh` y `start.sh`; no replica sus comandos.
@@ -66,7 +72,10 @@ está incluido pero no verificado. En Apple Silicon usa el Python arm64 de uv, n
 
 Cada arranque genera `artifacts/reports/run_report.html`, un reporte estático ignorado por Git con
 run_id, modos, duración, conteos, validación, respuestas, URL de Superset y enlaces de revisión.
-Usa `--no-browser` o `CI=true` para imprimir solo la ruta.
+Al final imprime el bloque **Superset listo** con la URL directa de `CaféNorte — 4 respuestas`,
+usuarios y el reporte. Las contraseñas se muestran con `./scripts/credentials.sh`; solo se imprimen
+en el bloque de `./scripts/start.sh --show-credentials` cuando se solicitan explícitamente. Usa
+`--no-browser` o `CI=true` para imprimir solo la ruta.
 
 La compatibilidad macOS usa Bash 3.2 con `set -u`; los arrays vacíos se expanden con la forma
 `${arr[@]+"${arr[@]}"}`. CI usa Bash 5 y por eso el job `bash-compatibility` ejercita argumentos
