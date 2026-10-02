@@ -36,7 +36,9 @@ no representan un procesamiento equivalente.
 
 ## Interpretación
 
-En 86k PardoX gana en lectura, cómputo y carga nativa; Polars tiene menor total frente a PRDX por el
-costo de materializar y recargar. Parquet pesa menos que PRDX; el argumento de PRDX es velocidad de
-escritura y recarga, no compresión. La diferencia x10 no se interpreta mientras `write_sql_prdx` no
-conserve la granularidad tienda x mes. El JSONL completo está en `logs/`.
+PardoX `to_sql` tiene el menor total en ambos volúmenes por la carga nativa a PostgreSQL
+(0.173562 s a 86,490 filas y 1.964213 s a 864,900). A 864,900 filas Polars es mejor en
+validación (0.002313 s) y agregación (0.007033 s) que PardoX `to_sql` (0.037149 s y 0.026622 s).
+Parquet pesa menos que PRDX; el argumento de PRDX es velocidad de escritura y recarga, no compresión.
+La diferencia x10 no se interpreta mientras `write_sql_prdx` no conserve la granularidad tienda x mes.
+El JSONL completo está en `logs/`.

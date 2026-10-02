@@ -1,191 +1,231 @@
-# CaféNorte: plataforma de datos reproducible
+# CaféNorte: un solo número para ventas e inventario
 
 [![CI](https://github.com/betoalien/CafeNorte-Tuxpas/actions/workflows/ci.yml/badge.svg)](https://github.com/betoalien/CafeNorte-Tuxpas/actions/workflows/ci.yml)
 
-«Tenemos datos en tres lugares distintos y cada área reporta un número diferente.» Así describió CaféNorte su problema: una cadena de ~40 cafeterías y una tienda Shopify que vende a México, EE. UU. y Europa, con un POS, un ERP legacy y Shopify que no se ponen de acuerdo, y un presupuesto de USD 200 al mes en AWS. Construí una plataforma que los concilia en un solo número confiable, responde las cuatro preguntas del negocio y se levanta con un comando. Lo más importante no fue el stack: fue encontrar dónde los datos no cuadraban y hacerlo visible en vez de esconderlo.
+> «Tenemos datos en tres lugares distintos y cada área reporta un número diferente.»
+> — CaféNorte, en la primera reunión
 
-## El reto
+CaféNorte es una cadena de unas 40 cafeterías en CDMX, el Bajío, Monterrey, Guadalajara y la
+frontera norte, con una tienda Shopify que vende a México, Estados Unidos y Europa. Su punto de
+venta, su ERP y Shopify no coinciden, y el dueño quiere un solo lugar donde ver ventas y rotación
+de inventario. El presupuesto: unos USD 200 al mes en AWS.
 
-El reto pide ingerir, normalizar y conciliar las fuentes, persistir un modelo analítico,
-responder cuatro preguntas y entregar una propuesta AWS con tests mínimos. Las fuentes
-son `sales.csv` del POS (CSV, 86,490 filas), `inventory.json` del ERP legacy (JSON
-anidado, 230,776 snapshots) y `ecommerce_orders.parquet` de Shopify (9,947 órdenes).
-Esta solución también conserva `exchange_rates.csv` para convertir moneda con trazabilidad.
+Este repositorio es mi respuesta. Una plataforma que concilia las tres fuentes, responde las
+cuatro preguntas del negocio y se levanta con un comando. Pero la parte que más importa no es el
+stack: es que, antes de calcular nada, revisé dónde los datos no cuadraban, y decidí hacerlo
+visible en lugar de esconderlo.
 
-Las preguntas son: top 10 SKUs por rotación en los últimos seis meses; tiendas con
-quiebres de stock de más de tres días en el último trimestre; crecimiento mes a mes de
-ventas por canal físico y e-commerce en el último año; y productos con margen negativo
-y las tiendas donde ocurre. El límite de infraestructura indicado es aproximadamente
-USD 200 mensuales.
+---
 
-## Lo que encontré
+## 1. Lo que me entregaron
 
-- **Mapping incompleto** — 6,132 ventas y 2,524,147.68 MXN tienen `sku_erp` nulo — lo conservo como ausencia de mapping y uso el número de producto como respaldo.
-- **CFDI** — I=82,518, E=3,079, P=451, N=288 y T=154 — cuento cada tipo sin cambiar signo ni inclusión.
-- **Inventario desconocido** — 4,417 snapshots son `N/A` — los trato como desconocidos, nunca como stock cero.
-- **Tipo de cambio** — EUR=22.0 aparece durante 63 días — lo uso con `suspected_truncation`.
-- **Catálogo geográfico** — el ERP trae 15 ciudades, siete no mencionadas en el relato y regiones inconsistentes — las reporto sin corregirlas.
-- **Privacidad** — Shopify contiene PII — la excluyo de Silver y Gold.
-- **Tiempo** — `fecha_hora` de POS es hora local de la tienda — dejo la conversión para dbt usando el maestro.
+| Fuente | Sistema | Formato | Lo que traía en realidad |
+|---|---|---|---|
+| `sales.csv` | Punto de venta de las tiendas | CSV | 86,490 ventas (el reto estimaba ~80 mil) |
+| `inventory.json` | ERP legacy | JSON anidado | 230,776 conteos diarios de inventario, catálogo, costos y tiendas |
+| `ecommerce_orders.parquet` | Shopify | Parquet | 9,947 órdenes en MXN, USD y EUR, con datos personales de clientes |
 
-Las interpretaciones largas viven en [`profiling.md`](artifacts/evidence/profiling.md)
-y [`docs/BUSINESS_METRICS.md`](docs/BUSINESS_METRICS.md).
+Y cuatro preguntas:
 
-## Las respuestas
+1. Top 10 SKUs por rotación de inventario en los últimos 6 meses.
+2. Tiendas con quiebres de stock de más de 3 días en el último trimestre.
+3. Crecimiento mes a mes de ventas por canal (físico vs e-commerce) en el último año.
+4. Productos con margen negativo y en qué tiendas ocurren.
 
-| Pregunta del reto | Respuesta | Periodo |
+## 2. Lo que encontré antes de calcular nada
+
+Cruzar las tablas y sumar habría dado números, pero no números confiables. El perfilado
+([`profiling.md`](artifacts/evidence/profiling.md)) mostró varias trampas:
+
+- **Productos que parecían conciliados y no lo estaban.** Cinco equivalencias entre el SKU del
+  POS y el del ERP tenían la clave pero el valor vacío. Contarlas como válidas habría dado una
+  cobertura del 100% falsa sobre **6,132 ventas por 2,524,147.68 MXN**. Decidí tratarlas como
+  ausencia de equivalencia y conciliar por el número de producto, que es común a los tres
+  sistemas, dejando registrado el método usado en cada fila.
+- **El tipo de comprobante fiscal no es una operación aritmética.** Hay cinco tipos de CFDI
+  (I=82,518, E=3,079, P=451, N=288, T=154). La tentación es restar los de egreso; pero todas las
+  cantidades son positivas y los precios se traslapan. Decidí contarlos por tipo sin cambiar el
+  signo de ninguna venta.
+- **"N/A" no es cero.** 4,417 conteos de inventario dicen `N/A`. Si los trato como cero, invento
+  quiebres de stock que no existen. Los guardo como "desconocido" y cortan cualquier racha.
+- **Un tipo de cambio sospechoso.** El euro vale exactamente 22.0 durante 63 días: huele a
+  truncamiento. Lo uso, porque es el dato del día, pero queda marcado.
+- **Tiendas que el cliente no mencionó.** En la reunión se habló de CDMX, el Bajío, Monterrey,
+  Guadalajara y la frontera; el ERP registra 40 tiendas en 15 ciudades, siete de ellas no
+  mencionadas (Cancún, Chihuahua, Hermosillo, Mérida, Nuevo Laredo, Puebla y Reynosa). Comprobé
+  que las 40 tiendas del ERP son exactamente las 40 que venden en el POS y las 40 que reportan
+  inventario, así que son tiendas reales. Decidí que **el ERP es el maestro**: él define la
+  ciudad, la región y la zona horaria de cada tienda, y el pipeline las toma de ahí, incluso
+  cuando su región no coincide con el relato (Monterrey y Chihuahua aparecen en "centro"). La
+  diferencia con lo que se dijo en la reunión queda documentada, no se corrige a mano.
+- **Datos personales.** Shopify trae nombre, correo, RFC y dirección. Nunca salen de la capa de
+  entrada.
+
+Las reglas completas están en [`docs/BUSINESS_METRICS.md`](docs/BUSINESS_METRICS.md).
+
+## 3. Las respuestas
+
+| Pregunta | Respuesta | Periodo |
 |---|---|---|
-| Top 10 SKUs por rotación | Top 3 de 10: `057-C` 1.362, `012-B` 1.226, `041-D` 1.201 | 2025-10-01—2026-03-31 |
-| Tiendas con quiebres >3 días | `T015`, `T023`, `T038`; una racha de 4 días cada una | 2026-01-01—2026-03-31 |
-| Crecimiento MoM por canal | Físico 20.72 M MXN (+2.7% abr→mar); e-commerce 4.23 M MXN (−8.5%); e-commerce = 16.9% de las ventas | 2025-04-01—2026-03-31 |
-| Productos con margen negativo | `015-D` −158,216.09, `002-B` −47,595.85, `001-A` −12,663.62 MXN | 2025-04-01—2026-03-31 |
+| Top 10 SKUs por rotación | Los tres primeros: `057-C` 1.362, `012-B` 1.226, `041-D` 1.201 | oct 2025 – mar 2026 |
+| Quiebres de stock de más de 3 días | `T015`, `T023` y `T038`, con una racha de 4 días cada una | ene – mar 2026 |
+| Crecimiento por canal | Físico 20.72 M MXN (+2.7% abr→mar); e-commerce 4.23 M MXN (−8.5%); e-commerce = 16.9% de las ventas | abr 2025 – mar 2026 |
+| Margen negativo | `015-D` −158,216.09, `002-B` −47,595.85 y `001-A` −12,663.62 MXN, en las 40 tiendas | abr 2025 – mar 2026 |
 
-Interpreté las ventanas con ancla común 2026-03-31. La rotación usa unidades POS e
-inventario ERP válido de la red; el trimestre es calendario; P3 publica físico/e-commerce
-y drill-down por tienda; P4 usa el costo vigente en la fecha de venta. Las respuestas
-completas y sus consultas están en [`artifacts/evidence/answers/`](artifacts/evidence/answers/).
-En términos de negocio, `015-D` combina volumen con margen negativo porque su costo
-supera el precio de venta: revisaría precio y proveedor antes de crecer ese SKU. La tienda
-en línea pierde terreno en el año aunque repunta en marzo (+8.5% MoM); preguntaría por
-cambios de catálogo, precio o tipo de cambio en Shopify.
+**Lo que le diría al dueño:**
 
-## Cómo lo construí
+- El producto `015-D` está entre los que más se venden y es el que más dinero pierde: su costo
+  subió por encima de su precio de venta y nadie lo ajustó. Es la recomendación más inmediata:
+  revisar precio o proveedor.
+- La tienda en línea pierde terreno en el año (−8.5% de abril a marzo) mientras las tiendas
+  físicas crecen. Antes de concluir, preguntaría si hubo cambios de catálogo, precios o tipo de
+  cambio en Shopify.
+
+**Cómo resolví las ambigüedades** (el reto pide decidir con criterio, sin preguntar):
+todas las ventanas terminan en el último día común a las tres fuentes, el 31 de marzo de 2026.
+La rotación es de toda la red y usa ventas de tiendas, porque el inventario del ERP es de tiendas.
+"Último trimestre" es el trimestre calendario. El crecimiento por canal se publica como físico
+contra e-commerce, con el detalle por tienda disponible. El margen usa el costo vigente en la
+fecha de cada venta. Las tablas completas y sus consultas están en
+[`artifacts/evidence/answers/`](artifacts/evidence/answers/).
+
+## 4. Cómo lo construí
 
 ```text
-datos/ (solo lectura) -> contratos + cuarentena -> Polars -> PostgreSQL Silver
-                                             -> dbt -> analytics Gold -> Superset/RLS
-                                             -> audit, manifests y evidencia
-                                      PardoX: ruta alternativa aislada para sales.csv
+datos/ (solo lectura) → contratos + cuarentena → Polars → PostgreSQL (Silver)
+                                              → dbt → PostgreSQL (Gold) → Superset con RLS
+                                              → auditoría: manifiestos, rechazos, reconciliación
 ```
 
-Conservé las fuentes inmutables y registré hashes porque una cifra sin procedencia no
-resuelve el problema del cliente. Pydantic valida por registro y cuarentena lo inválido.
-Polars es la referencia proporcional al volumen; PostgreSQL reemplaza DuckDB porque
-necesito transacciones, roles y serving; dbt es dueño de conciliación, FX, costos y
-métricas; Superset solo consulta Gold con RLS. Los detalles y ADRs están en
-[`docs/TECH_STACK.md`](docs/TECH_STACK.md), [`docs/decisions/`](docs/decisions/) y
-[`docs/SYSTEM_MAP.md`](docs/SYSTEM_MAP.md).
+Cada pieza responde a una decisión concreta:
 
-## Cómo sé que es correcto
+- **Los archivos originales nunca se tocan.** Guardo su huella SHA-256 y la verifico en cada
+  corrida. Si alguien los modifica, la validación falla. Un número sin procedencia no resuelve
+  el problema de "cada área tiene su cifra".
+- **Contratos y cuarentena con Pydantic.** Cada registro se valida; lo que no cumple va a
+  cuarentena con su motivo. Nada se descarta en silencio.
+- **Polars para preparar los datos.** Es proporcional al volumen: no hace falta Spark para
+  300 mil filas.
+- **PostgreSQL y no DuckDB** ([ADR-002](docs/decisions/ADR-002-POSTGRESQL-SERVING.md)): necesitaba
+  transacciones, roles de acceso y un servidor que un dashboard pueda consultar.
+- **dbt es dueño de las reglas del negocio** ([ADR-003](docs/decisions/ADR-003-DBT-SEMANTICS.md)):
+  conciliación de productos, tipo de cambio, costo vigente y métricas viven en un solo lugar,
+  versionadas y probadas.
+- **Superset con seguridad por tienda** ([ADR-006](docs/decisions/ADR-006-SUPERSET.md)): el
+  director ve toda la red; un gerente solo ve su tienda.
 
-Recalculé resultados desde los archivos originales y comparé hashes con
-[`datos/SHA256SUMS`](datos/SHA256SUMS). dbt prueba invariantes y cifras, pytest prueba
-contratos, cuarentena, idempotencia y transformación, y el control negativo de paridad
-detecta alteraciones reales. También probé RLS con la API y ejecuté el flujo desde un
-clon limpio. La revisión encontró tres errores importantes antes de cerrar: P1 mezclaba
-granos y quedaba inflada unas 40 veces, P4 no filtraba su ventana y RLS estaba declarado
-en YAML pero no aplicado; están explicados en [`AI_LOG.md`](AI_LOG.md).
+El detalle de cada tecnología, sus versiones y el recorrido completo de una venta desde el CSV
+hasta el dashboard están en [`docs/TECH_STACK.md`](docs/TECH_STACK.md).
 
-## Alcance y prioridades
+## 5. Cómo sé que los números son correctos
 
-El reto estimaba 2 a 4 horas de trabajo efectivo. Cerré primero el núcleo pedido:
-fuentes conciliadas, modelo analítico, cuatro respuestas, propuesta AWS y AI_LOG,
-verificado dentro de ese tiempo efectivo (commit [`db9c980`](https://github.com/betoalien/CafeNorte-Tuxpas/commit/db9c980)). Después agregué endurecimiento operativo en bloques pequeños, cada uno con validación y commit propios.
+"Corre sin error" no significa "da el número correcto". Por eso:
 
-| Lo que agregué | Riesgo que atiende |
+- **Recalculé las cuatro respuestas por separado**, desde los archivos originales y sin usar el
+  código del pipeline, y coinciden (los montos, al centavo).
+- **Pruebas que pueden fallar.** dbt valida invariantes y cifras de negocio; pytest valida
+  contratos, cuarentena, idempotencia y la carga incremental. Varias pruebas incluyen un
+  control negativo: se altera un dato a propósito para comprobar que la prueba lo detecta.
+- **El acceso por tienda se prueba con datos reales**, entrando como gerente y como director.
+- **Todo corre desde un clon limpio**, sin nada de mi máquina; GitHub Actions lo
+  repite en Ubuntu en cada push.
+
+La revisión encontró errores reales antes de la entrega, y todos se corrigieron: la rotación
+salía inflada unas 40 veces por mezclar el inventario de una tienda con las ventas de toda la
+red; el margen negativo no filtraba su periodo; y la seguridad por tienda estaba declarada en un
+archivo pero no aplicada. El detalle está en [`AI_LOG.md`](AI_LOG.md).
+
+## 6. Alcance: lo que pedía el reto y lo que agregué
+
+El reto estimaba de 2 a 4 horas de trabajo efectivo. Cerré primero el alcance pedido: las tres
+fuentes conciliadas, el modelo analítico, las cuatro respuestas verificadas, las pruebas, la
+propuesta y la bitácora. Quedó listo la primera tarde
+([`db9c980`](https://github.com/betoalien/CafeNorte-Tuxpas/commit/db9c980)). Después agregué,
+de forma deliberada, endurecimiento para operación real, en bloques pequeños, cada uno con su
+validación y su commit, de modo que en todo momento hubo una entrega completa.
+
+Cada agregado responde a algo que dijo el cliente:
+
+| Lo que agregué | Por qué |
 |---|---|
-| Superset con RLS | Un solo lugar de consulta sin mezclar tiendas |
-| Hashes, cuarentena y reconciliación | Auditar por qué cada área obtiene un número distinto |
-| `skipped`/`incremental`/`full` | Cargas diarias de bajo costo |
-| CI, doctor, clon limpio y portabilidad | Operación por el equipo de TI |
-| PardoX con paridad | Alternativa de motor fuera del camino crítico |
+| Dashboard en Superset con seguridad por tienda | «Un solo lugar donde ver ventas y rotación», y cada gerente ve solo lo suyo |
+| Huellas de los originales, cuarentena y reconciliación | «Cada área reporta un número diferente»: cada cifra se puede rastrear hasta su fuente |
+| Carga que detecta si hubo cambios (sin cambios, incremental o completa) | Corridas diarias baratas dentro de USD 200 al mes |
+| Validación desde cero, CI y soporte para macOS, Linux y Windows | Que su equipo de TI pueda operarlo sin depender de mí |
+| PardoX, mi propio motor, con prueba de paridad | Una alternativa verificada, fuera del camino crítico |
 
-Dejé fuera a propósito el despliegue real en AWS, Airflow/MWAA, alta disponibilidad de
-Superset y OAuth/HTTPS; están en la propuesta por fases, no en el demo local. Si hubiera
-que entregar solo lo pedido, entregaría exactamente el núcleo; lo demás es endurecimiento
-identificado como tal.
+Dejé fuera a propósito el despliegue real en AWS, un orquestador como Airflow
+([ADR-004](docs/decisions/ADR-004-NO-AIRFLOW-KAFKA.md)), la alta disponibilidad del dashboard y
+el inicio de sesión corporativo: están en la propuesta por fases. Si hubiera que entregar solo lo
+pedido, entregaría exactamente el núcleo; lo demás está identificado como endurecimiento.
 
-## Pruébalo
+## 7. Pruébalo
 
-Requisitos y problemas comunes están en [`docs/INSTALACION.md`](docs/INSTALACION.md).
+Con Docker, `uv` y Git instalados, son tres comandos:
 
 ```bash
 git clone https://github.com/betoalien/CafeNorte-Tuxpas.git
 cd CafeNorte-Tuxpas
 ./scripts/start.sh
-./scripts/validate.sh
 ```
 
-Al terminar aparece `Superset listo` y un reporte HTML. `director` ve la red completa;
-`gerente_t001` ve T001 en P2/P3/P4. Las contraseñas se muestran con
-`./scripts/credentials.sh`; Windows tiene `scripts/windows/start.bat`.
+**Antes de correrlo, sigue la guía de tu sistema operativo en
+[`docs/CONFIGURACION.md`](docs/CONFIGURACION.md)**: macOS, Windows (nativo o con WSL2),
+Ubuntu/Debian y Fedora/RHEL, paso a paso, con la verificación de cada requisito, qué esperar
+al arrancar, cómo entrar al dashboard como director o como gerente y cómo resolver los
+problemas comunes.
 
-Cuando llegan datos nuevos, `skipped` no toca Silver; `incremental` inserta claves nuevas
-y conserva el `run_id` original; `full` reemplaza la tabla de la fuente cuando cambia o desaparece una fila existente.
+## 8. PardoX
 
-## PardoX
+PardoX es un motor de DataFrames que escribí en Rust ([pardox.io](https://www.pardox.io/)). En
+este proyecto es una alternativa verificada, no el camino principal: procesa `sales.csv` de punta
+a punta y su resultado se compara fila por fila con Polars. Su carga nativa a PostgreSQL fue la
+más rápida de las rutas medidas, y la prueba de paridad encontró un error real en mi propio motor.
+Por qué lo creé, cómo se integró, los tiempos y ese hallazgo están en
+[`docs/PARDOX.md`](docs/PARDOX.md).
 
-PardoX carga sales a PostgreSQL más rápido que Polars a ×1 y ×10; Polars gana en cómputo
-en memoria a ×10. La guarda de paridad encontró un bug real en `.prdx` 0.3.4, por offsets
-UTF-8 sin rebase entre bloques; la [reproducción](artifacts/evidence/pardox-0.3.4-prdx-repro/README.md)
-lo deja aislado. Inventario, Shopify y FX permanecen en Polars por el alcance de SPEC-003.
+## 9. Cómo usé IA
 
-### ¿Por qué existe PardoX?
-
-PardoX nació de una brecha concreta: **pandas se queda sin memoria** con volúmenes grandes y
-**Polars**, aunque robusto, vive dentro del ecosistema de dependencias de Python. Spark resuelve
-la escala, pero solo habla Java/Scala y Python, y exige una JVM o un clúster.
-
-- **Cero dependencias de lenguaje.** Toda la lógica vive en un núcleo Rust; Python, Node.js y PHP
-  son bindings delgados. Leer CSV/Parquet, validar contratos, transformar y escribir a
-  PostgreSQL no requiere psycopg2, SQLAlchemy ni pyarrow.
-- **Universalidad.** Miles de tiendas en línea y sitios web corren en PHP (Laravel, Symfony) o
-  Node.js y necesitan llevar sus datos a un dataset sin un clúster JVM. El paquete incluye
-  binarios para macOS (ARM/Intel), Linux x86-64, Windows, Node (N-API) y WASM.
-- **Hasta el mainframe.** En una prueba propia del autor, un programa COBOL llamó al núcleo de
-  PardoX por FFI (DLL/.so) y convirtió un archivo `.dat` de mainframe con 50 millones de
-  registros a `.prdx` en ~90 segundos, sin capas de traducción intermedias.
-- **PostgreSQL sin intermediarios.** El protocolo binario de PostgreSQL está implementado en Rust:
-  los datos van de la base a la memoria del motor (y de regreso, con `to_sql`) sin convertirse en
-  objetos Python.
-- **Motor propio, no un wrapper.** El núcleo no depende de Apache Arrow: usa estructuras propias en
-  Rust y paralelismo con Rayon, con una heurística que decide qué porcentaje de CPU dedicar a cada
-  lectura y escritura según la carga.
-- **Formato `.prdx`.** Bloques comprimidos con Zstd pensados para escribir y recargar rápido
-  (no para el menor tamaño: en este reto el parquet de Polars pesa menos).
-
-**Qué demuestra en este reto:** paridad fila por fila con Polars sobre `sales.csv`, verificada en
-PostgreSQL, y la carga a PostgreSQL más rápida de las tres rutas medidas. Polars gana en cómputo en
-memoria a ×10. Polars sigue siendo el motor de referencia; PardoX es una alternativa verificada,
-nunca el camino crítico. La guarda de paridad encontró un bug real en la ruta `.prdx` de la
-versión 0.3.4 (offsets UTF-8 sin rebase entre bloques), documentado en la reproducción.
-
-**Fuera de este reto:** en una prueba propia del autor (640 millones de filas en 320 CSV, laptop
-Ryzen 5 con 16 GB), PardoX tardó 182 s contra 204 s de Polars, con 1.13 GB de RAM.
-
-## Cómo usé IA
-
-Codex implementó cambios y pruebas; Claude revisó contra los datos originales y detectó
-errores de magnitud; yo decidí alcance, interpretaciones y qué aceptar o rechazar. Cada
-bloque terminó con validación y commit propio. La bitácora completa está en
-[`AI_LOG.md`](AI_LOG.md).
+Trabajé con dos asistentes con roles separados: Codex implementaba y Claude revisaba contra los
+datos originales. Yo decidía el alcance, las interpretaciones del negocio y qué aceptar o
+rechazar. El patrón de error más repetido de la IA fue *declarar en vez de ejecutar*: una prueba
+que no podía fallar, una regla escrita pero no aplicada. La bitácora completa, con los prompts
+clave, los errores y mi autocrítica, está en [`AI_LOG.md`](AI_LOG.md).
 
 ## Llevarlo a producción
 
-Propongo S3 para Bronze, Silver y Gold; Lambda y ECS/Fargate para ingesta y batch; Glue
-Catalog, Athena y dbt para catálogo, consulta y semántica; Apache Superset en Lightsail
-4 GB con OAuth y HTTPS para el visor; Secrets Manager para credenciales; y
-CloudWatch/CloudTrail para operación y auditoría. Todo va en `us-east-1`: cuesta USD
-34.49/mes, deja USD 165.51 bajo el límite y descarta QuickSight por su costo por lector.
-La arquitectura completa está en [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md).
-La versión PDF para revisión está en [`artifacts/evidence/PROPUESTA_AWS.pdf`](artifacts/evidence/PROPUESTA_AWS.pdf).
+Para producción propongo una plataforma batch diaria en `us-east-1`: S3 para guardar los datos
+en sus tres capas; Lambda y ECS/Fargate para la ingesta y el procesamiento; Glue Catalog, Athena
+y dbt para el catálogo, las consultas y las reglas de negocio; Apache Superset en Lightsail 4 GB
+con inicio de sesión corporativo y HTTPS; Secrets Manager para las credenciales; CloudWatch y
+CloudTrail para operación y auditoría. Costo estimado: **USD 34.49 al mes**, USD 165.51 por debajo
+del límite. Descarté QuickSight porque su costo crece con cada usuario.
+Ver [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md) y su versión en
+[PDF](artifacts/evidence/PROPUESTA_AWS.pdf).
 
-## Limitaciones y siguientes pasos
+## Limitaciones y preguntas abiertas
 
-Superset es local y no tiene alta disponibilidad; PardoX es experimental y `write_sql_prdx`
-falla la guarda x10; Windows no tiene ejecución Docker verificada en CI. Antes de firmar
-preguntaría retención y volumen futuro, SLA, zonas horarias oficiales, reglas de impuestos,
-proveedor de costos y requisitos de identidad/HTTPS.
+- El dashboard local no tiene alta disponibilidad; en producción es una sola instancia con
+  respaldos.
+- PardoX es experimental: su ruta `.prdx` tiene el error encontrado y está excluida a gran volumen.
+- En Windows nativo el flujo completo está soportado pero no verificado en CI, porque GitHub no
+  corre contenedores Linux en Windows.
+- Antes de firmar le confirmaría al cliente: ¿el inventario del ERP también surte al
+  e-commerce?, ¿el monto de venta es neto de IVA?, ¿el euro a 22.0 es un error de su
+  proveedor de tipo de cambio? y ¿por qué cinco equivalencias de producto quedaron vacías en el
+  ERP? (Ya se concilian por número de producto; la pregunta es para corregir el origen).
 
-## Mapa de documentación
+## Mapa de la documentación
 
 | Documento | Para qué sirve |
 |---|---|
-| `docs/INSTALACION.md` | Requisitos y operación local |
-| `docs/TECH_STACK.md` | Stack, metodología y recorrido de un registro |
-| `docs/DATA_CONTRACTS.md` | Contratos, Silver y auditoría |
-| `docs/BUSINESS_METRICS.md` | Métricas, ventanas e interpretaciones |
-| `docs/PROPUESTA_AWS.md` | Carta de arquitectura, costo y fases |
-| `docs/RUNBOOK.md` | Procedimientos operativos |
-| `docs/specs/`, `docs/decisions/` | Especificaciones y decisiones |
-| `AI_LOG.md` | Uso de IA, errores y autocrítica |
+| [`docs/CONFIGURACION.md`](docs/CONFIGURACION.md) | Instalación y operación paso a paso por sistema operativo |
+| [`docs/PARDOX.md`](docs/PARDOX.md) | PardoX: por qué existe, integración, tiempos y hallazgos |
+| [`docs/TECH_STACK.md`](docs/TECH_STACK.md) | Tecnologías, metodología y recorrido de una venta |
+| [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md) | Propuesta para el cliente: arquitectura, costo y fases |
+| [`docs/BUSINESS_METRICS.md`](docs/BUSINESS_METRICS.md) | Definición de cada métrica e interpretación |
+| [`docs/DATA_CONTRACTS.md`](docs/DATA_CONTRACTS.md) | Contratos de cada fuente y capa |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Operación: comandos y recuperación |
+| [`docs/decisions/`](docs/decisions/) · [`docs/specs/`](docs/specs/) | Decisiones de arquitectura y especificaciones |
+| [`artifacts/evidence/`](artifacts/evidence/) | Evidencia de cada validación |
+| [`AI_LOG.md`](AI_LOG.md) | Cómo usé IA, qué rechacé y qué se corrigió |

@@ -21,6 +21,12 @@ models:
               values: ['explicit', 'product_number', 'product_number_null_erp', 'unmatched']
   - name: fct_sales
     columns:
+      - name: tienda_id
+        tests:
+          - relationships:
+              to: ref('dim_store')
+              field: store_id
+              where: "source_name = 'POS'"
       - name: sale_key
         tests: [not_null, unique]
       - name: channel
@@ -31,6 +37,11 @@ models:
     columns:
       - name: fecha
         tests: [not_null]
+      - name: tienda_id
+        tests:
+          - relationships:
+              to: ref('dim_store')
+              field: store_id
       - name: stock_quantity
         tests: []
   - name: mart_inventory_turnover_top10

@@ -16,7 +16,7 @@ def relative_links(path: Path) -> list[Path]:
 
 
 def test_delivery_document_links_exist() -> None:
-    for name in ("README.md", "docs/INSTALACION.md", "AI_LOG.md"):
+    for name in ("README.md", "docs/CONFIGURACION.md", "docs/PARDOX.md", "AI_LOG.md"):
         missing = [str(path) for path in relative_links(ROOT / name) if not path.exists()]
         assert not missing, missing
 

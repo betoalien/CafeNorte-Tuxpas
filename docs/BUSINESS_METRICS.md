@@ -86,8 +86,8 @@ fija además estas reglas de semántica:
    mapping explícito solo si `sku_erp` no es nulo y luego número con nombre validado; `match_method`
    admite `explicit`, `product_number` y `product_number_null_erp`, y separa lo no conciliado en Audit.
 3. `monto` es neto sin IVA como supuesto documentado.
-4. Las dimensiones de tienda proceden de `tiendas_info`; las ciudades/regiones inesperadas se
-   publican como discrepancia de calidad.
+4. `dim_store` toma ciudad, región y zona horaria exclusivamente de `tiendas_info` del ERP; las
+   ciudades/regiones inesperadas se publican como discrepancia de calidad.
 5. FX usa la tasa del día y conserva EUR=22.0 con `fx_quality_flag`.
 6. P2 usa el trimestre calendario 2026-01-01—2026-03-31; lista la tienda por cualquier SKU con
    secuencia >3 días en cero, recorta rachas iniciadas antes de la ventana y marca
