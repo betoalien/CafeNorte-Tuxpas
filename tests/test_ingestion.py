@@ -1,13 +1,7 @@
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
-
 from cafenorte import ingest
-
-pytestmark = pytest.mark.skipif(
-    not Path(".env").exists(), reason="requires the local PostgreSQL environment"
-)
 
 
 def query(sql: str) -> list[tuple]:
@@ -20,21 +14,79 @@ def test_real_sources_and_idempotence() -> None:
     ingest.main()
     first = query(
         """
-        SELECT 'pos_sales', count(*), sum(cantidad), sum(monto) FROM silver.pos_sales
-        UNION ALL SELECT 'ecommerce_orders', count(*), sum(cantidad), sum(amount)
-          FROM silver.ecommerce_orders
-        UNION ALL SELECT 'inventory_snapshots', count(*), sum(coalesce(stock_quantity, 0)), NULL
-          FROM silver.inventory_snapshots
+        SELECT table_name, rows, units, amount FROM (
+          SELECT 'pos_sales' AS table_name, count(*) AS rows, sum(cantidad) AS units,
+                 sum(monto) AS amount FROM silver.pos_sales
+          UNION ALL SELECT 'ecommerce_orders', count(*), sum(cantidad), sum(amount)
+            FROM silver.ecommerce_orders
+          UNION ALL SELECT 'inventory_snapshots', count(*), sum(stock_quantity), NULL
+            FROM silver.inventory_snapshots
+          UNION ALL SELECT 'stores', count(*), NULL, NULL FROM silver.stores
+          UNION ALL SELECT 'products', count(*), NULL, NULL FROM silver.products
+          UNION ALL SELECT 'sku_mappings', count(*), NULL, NULL FROM silver.sku_mappings
+          UNION ALL SELECT 'exchange_rates', count(*), NULL, NULL FROM silver.exchange_rates
+        ) silver_counts ORDER BY table_name
         """
     )
+    first_quarantine = query("SELECT count(*) FROM audit.quarantine")[0][0]
     ingest.main()
     second = query(
-        "SELECT table_name, count(*) FROM information_schema.tables "
-        "WHERE table_schema = 'silver' GROUP BY table_name ORDER BY table_name"
+        """
+        SELECT table_name, rows, units, amount FROM (
+          SELECT 'pos_sales' AS table_name, count(*) AS rows, sum(cantidad) AS units,
+                 sum(monto) AS amount FROM silver.pos_sales
+          UNION ALL SELECT 'ecommerce_orders', count(*), sum(cantidad), sum(amount)
+            FROM silver.ecommerce_orders
+          UNION ALL SELECT 'inventory_snapshots', count(*), sum(stock_quantity), NULL
+            FROM silver.inventory_snapshots
+          UNION ALL SELECT 'stores', count(*), NULL, NULL FROM silver.stores
+          UNION ALL SELECT 'products', count(*), NULL, NULL FROM silver.products
+          UNION ALL SELECT 'sku_mappings', count(*), NULL, NULL FROM silver.sku_mappings
+          UNION ALL SELECT 'exchange_rates', count(*), NULL, NULL FROM silver.exchange_rates
+        ) silver_counts ORDER BY table_name
+        """
     )
-    assert first[0][1:] == (86490, 133383, Decimal("30947253.82"))
-    assert first[1][1:] == (9947, 13292, Decimal("2984113.06"))
-    assert second
+    second_quarantine = query("SELECT count(*) FROM audit.quarantine")[0][0]
+    assert first == second
+    assert first_quarantine == second_quarantine
+    assert first[3][1:] == (86490, 133383, Decimal("30947253.82"))
+    assert first[0][1:] == (9947, 13292, Decimal("2984113.06"))
+
+
+def test_cfdi_counts_and_positive_values() -> None:
+    rows = query(
+        """
+        SELECT tipo_comprobante, count(*), min(cantidad), min(monto)
+        FROM silver.pos_sales GROUP BY tipo_comprobante ORDER BY tipo_comprobante
+        """
+    )
+    assert {row[0]: row[1] for row in rows} == {
+        "I": 82518,
+        "E": 3079,
+        "P": 451,
+        "N": 288,
+        "T": 154,
+    }
+    assert all(row[2] > 0 and row[3] > Decimal("0") for row in rows)
+    assert sum(row[1] for row in rows) == 86490
+
+
+def test_latest_manifest_matches_source_hashes() -> None:
+    manifests = query(
+        """
+        SELECT source_file, sha256_before, sha256_after
+        FROM audit.ingestion_manifest
+        WHERE run_id = (SELECT run_id FROM audit.run_log WHERE status = 'succeeded'
+                        ORDER BY started_at DESC LIMIT 1)
+        ORDER BY source_file
+        """
+    )
+    paths = {"datos/" + path.name: path for path in Path("datos").iterdir()}
+    assert len(manifests) == 4
+    for source_file, before, after in manifests:
+        actual = ingest.sha256(paths[source_file])
+        assert before == actual
+        assert after == actual
 
 
 def test_silver_privacy_quality_and_fx() -> None:

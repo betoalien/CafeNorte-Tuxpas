@@ -47,6 +47,7 @@ artifacts/reports/*
 !artifacts/evidence/block-a1-validation.md
 !artifacts/evidence/block-a2-validation.md
 !artifacts/evidence/block-b-validation.md
+!artifacts/evidence/block-b1-validation.md
 artifacts/manifests/*
 !artifacts/manifests/.gitkeep
 !artifacts/manifests/.gitkeep

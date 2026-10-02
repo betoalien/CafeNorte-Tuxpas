@@ -7,6 +7,7 @@ import os
 import re
 from collections.abc import Callable
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID, uuid4
@@ -93,17 +94,20 @@ def read_csv(path: Path) -> list[dict[str, Any]]:
 
 
 def source_manifest(
-    path: Path, run_id: UUID, started: datetime, input_count: int, accepted: int, rejected: int
+    path: Path,
+    run_id: UUID,
+    started: datetime,
+    input_count: int,
+    accepted: int,
+    rejected: int,
+    sha_before: str,
+    sha_after: str,
 ) -> Manifest:
-    before = sha256(path)
-    after = sha256(path)
-    if before != after:
-        raise RuntimeError(f"Source changed while reading: {path}")
     return Manifest(
         run_id=run_id,
         source_file=str(path.relative_to(ROOT)),
-        sha256_before=before,
-        sha256_after=after,
+        sha256_before=sha_before,
+        sha256_after=sha_after,
         size_bytes=path.stat().st_size,
         input_count=input_count,
         accepted_count=accepted,
@@ -186,6 +190,11 @@ def insert_rows(cur: psycopg.Cursor, sql: str, rows: list[tuple[Any, ...]]) -> N
         cur.executemany(sql, rows)
 
 
+def ensure_tables() -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(DDL)
+
+
 def load(
     run_id: UUID,
     manifests: list[Manifest],
@@ -201,17 +210,6 @@ def load(
         cur.execute("DELETE FROM silver.inventory_snapshots")
         cur.execute("DELETE FROM silver.ecommerce_orders")
         cur.execute("DELETE FROM silver.exchange_rates")
-        cur.execute("DELETE FROM audit.quarantine")
-        for table in (
-            "pos_sales",
-            "stores",
-            "products",
-            "sku_mappings",
-            "inventory_snapshots",
-            "ecommerce_orders",
-            "exchange_rates",
-        ):
-            cur.execute(f"ALTER TABLE silver.{table} DISABLE TRIGGER ALL")
         insert_rows(
             cur,
             "INSERT INTO silver.pos_sales VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
@@ -237,16 +235,6 @@ def load(
         insert_rows(
             cur, "INSERT INTO silver.exchange_rates VALUES (%s,%s,%s,%s,%s,%s)", data["rates"]
         )
-        for table in (
-            "pos_sales",
-            "stores",
-            "products",
-            "sku_mappings",
-            "inventory_snapshots",
-            "ecommerce_orders",
-            "exchange_rates",
-        ):
-            cur.execute(f"ALTER TABLE silver.{table} ENABLE TRIGGER ALL")
         insert_rows(
             cur,
             "INSERT INTO audit.quarantine "
@@ -285,9 +273,49 @@ def load(
         )
 
 
-def main() -> None:
-    run_id = uuid4()
-    started = now()
+def update_run_status(run_id: UUID, status: str, error_message: str | None = None) -> None:
+    with connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "UPDATE audit.run_log SET status = %s, completed_at = %s, error_message = %s "
+            "WHERE run_id = %s",
+            (status, now(), error_message, run_id),
+        )
+
+
+def record_failed(run_id: UUID, started: datetime, error: Exception) -> None:
+    try:
+        with connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO audit.run_log "
+                "(run_id, started_at, completed_at, status, error_message) "
+                "VALUES (%s, %s, %s, 'failed', %s) "
+                "ON CONFLICT (run_id) DO UPDATE SET status = 'failed', "
+                "completed_at = EXCLUDED.completed_at, error_message = EXCLUDED.error_message",
+                (run_id, started, now(), str(error)),
+            )
+    except psycopg.Error:
+        # A failed connection before init cannot create an audit row.
+        pass
+
+
+def snapshot_to_silver(
+    record: SnapshotRecord, run_id: UUID, ingested_at: datetime
+) -> tuple[Any, ...]:
+    is_unknown = record.cantidad_en_stock == "N/A"
+    return (
+        record.fecha,
+        record.tienda_id,
+        record.sku_erp,
+        None if is_unknown else record.cantidad_en_stock,
+        str(record.cantidad_en_stock),
+        "unknown" if is_unknown else "valid",
+        "N/A means unknown" if is_unknown else "",
+        run_id,
+        ingested_at,
+    )
+
+
+def _run(run_id: UUID, started: datetime) -> None:
     MANIFEST_DIR.mkdir(parents=True, exist_ok=True)
     paths = [
         DATA / "sales.csv",
@@ -298,10 +326,12 @@ def main() -> None:
     for path in paths:
         if not path.is_file():
             raise FileNotFoundError(path)
+    hashes_before = {path: sha256(path) for path in paths}
+    ensure_tables()
     sales_rows = read_csv(paths[0])
     for row in sales_rows:
         row["cantidad"] = int(row["cantidad"])
-        row["monto"] = float(row["monto"])
+        row["monto"] = Decimal(row["monto"])
     sales, q_sales = parse_records(
         "sales.csv", sales_rows, SalesRecord, lambda r: r.get("venta_id", ""), run_id
     )
@@ -358,6 +388,7 @@ def main() -> None:
     orders_rows = orders_df.to_dicts()
     for row in orders_rows:
         row["fecha"] = datetime.fromisoformat(row["fecha"])
+        row["amount"] = Decimal(str(row["amount"]))
     orders, q_orders = parse_records(
         "ecommerce_orders.parquet",
         orders_rows,
@@ -367,7 +398,7 @@ def main() -> None:
     )
     rate_rows = read_csv(paths[3])
     for row in rate_rows:
-        row["rate_to_mxn"] = float(row["rate_to_mxn"])
+        row["rate_to_mxn"] = Decimal(row["rate_to_mxn"])
     rates, q_rates = parse_records(
         "exchange_rates.csv",
         rate_rows,
@@ -377,10 +408,20 @@ def main() -> None:
     )
     dates = {rate.fecha for rate in rates}
     rates.extend(
-        ExchangeRateRecord(fecha=day, currency="MXN", rate_to_mxn=1.0) for day in sorted(dates)
+        ExchangeRateRecord(fecha=day, currency="MXN", rate_to_mxn=Decimal("1.0"))
+        for day in sorted(dates)
     )
     manifests = [
-        source_manifest(paths[0], run_id, started, len(sales_rows), len(sales), len(q_sales)),
+        source_manifest(
+            paths[0],
+            run_id,
+            started,
+            len(sales_rows),
+            len(sales),
+            len(q_sales),
+            hashes_before[paths[0]],
+            hashes_before[paths[0]],
+        ),
         source_manifest(
             paths[1],
             run_id,
@@ -391,10 +432,28 @@ def main() -> None:
             + len(snapshot_rows),
             len(stores) + len(mappings) + len(products) + len(unique_snapshots),
             len(q_stores) + len(q_mappings) + len(q_products) + len(q_snapshots),
+            hashes_before[paths[1]],
+            hashes_before[paths[1]],
         ),
-        source_manifest(paths[2], run_id, started, len(orders_rows), len(orders), len(q_orders)),
         source_manifest(
-            paths[3], run_id, started, len(rate_rows), len(rate_rows) - len(q_rates), len(q_rates)
+            paths[2],
+            run_id,
+            started,
+            len(orders_rows),
+            len(orders),
+            len(q_orders),
+            hashes_before[paths[2]],
+            hashes_before[paths[2]],
+        ),
+        source_manifest(
+            paths[3],
+            run_id,
+            started,
+            len(rate_rows),
+            len(rate_rows) - len(q_rates),
+            len(q_rates),
+            hashes_before[paths[3]],
+            hashes_before[paths[3]],
         ),
     ]
     ingested_at = now()
@@ -433,20 +492,7 @@ def main() -> None:
             for x in products
         ],
         "mappings": [(x.sku_pos, x.sku_erp, x.handle, run_id, ingested_at) for x in mappings],
-        "snapshots": [
-            (
-                x.fecha,
-                x.tienda_id,
-                x.sku_erp,
-                None if x.cantidad_en_stock == "N/A" else x.cantidad_en_stock,
-                str(x.cantidad_en_stock),
-                "unknown" if x.cantidad_en_stock == "N/A" else "valid",
-                "N/A means unknown" if x.cantidad_en_stock == "N/A" else "",
-                run_id,
-                ingested_at,
-            )
-            for x in unique_snapshots
-        ],
+        "snapshots": [snapshot_to_silver(x, run_id, ingested_at) for x in unique_snapshots],
         "orders": [
             (
                 x.order_id,
@@ -468,7 +514,7 @@ def main() -> None:
                 x.currency,
                 x.rate_to_mxn,
                 "suspected_truncation"
-                if x.currency == "EUR" and x.rate_to_mxn == 22.0
+                if x.currency == "EUR" and x.rate_to_mxn == Decimal("22.0")
                 else "normal",
                 run_id,
                 ingested_at,
@@ -482,6 +528,21 @@ def main() -> None:
         q_sales + q_stores + q_mappings + q_products + q_snapshots + q_orders + q_rates,
         data,
     )
+    hashes_after = {path: sha256(path) for path in paths}
+    changed = [path for path in paths if hashes_before[path] != hashes_after[path]]
+    for manifest, path in zip(manifests, paths, strict=True):
+        manifest.sha256_after = hashes_after[path]
+    with connect() as conn, conn.cursor() as cur:
+        for manifest in manifests:
+            cur.execute(
+                "UPDATE audit.ingestion_manifest SET sha256_after = %s "
+                "WHERE run_id = %s AND source_file = %s",
+                (manifest.sha256_after, manifest.run_id, manifest.source_file),
+            )
+    if changed:
+        message = "Source changed during ingestion: " + ", ".join(str(path) for path in changed)
+        update_run_status(run_id, "failed", message)
+        raise RuntimeError(message)
     payload = {"run_id": str(run_id), "manifests": [m.model_dump(mode="json") for m in manifests]}
     (MANIFEST_DIR / f"{run_id}.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -489,6 +550,16 @@ def main() -> None:
     print(
         json.dumps({"run_id": str(run_id), "manifests": payload["manifests"]}, ensure_ascii=False)
     )
+
+
+def main() -> None:
+    run_id = uuid4()
+    started = now()
+    try:
+        _run(run_id, started)
+    except Exception as error:
+        record_failed(run_id, started, error)
+        raise
 
 
 if __name__ == "__main__":

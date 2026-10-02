@@ -25,6 +25,12 @@
 | moneda | text | esperado MXN |
 | tipo_comprobante | text | atributo del CFDI emitido; conservar código original |
 
+`fecha_hora` de POS se interpreta como hora local de la tienda y se conserva sin conversión en
+Silver. Es un supuesto respaldado por el perfilado: todas las zonas observadas tienen ventas entre
+07:00 y 21:00 ([evidencia de zona horaria](../artifacts/evidence/profiling.md#evidencia-de-zona-horaria-de-ventas)).
+`silver.stores.timezone` conserva la zona IANA del maestro y permitirá que dbt convierta o compare
+fechas en la capa semántica; Silver no convierte a UTC.
+
 Todos los registros son ventas. `tipo_comprobante` se usa para contar CFDI por tipo; nunca
 modifica el signo de `monto` o `cantidad` ni determina la inclusión del registro. El perfilado
 muestra cantidades positivas y rangos de precio unitario superpuestos en los cinco tipos

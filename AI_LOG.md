@@ -185,3 +185,14 @@ por una validación explícita que acepta `N/A` o enteros no negativos. Después
 crear schemas con `pipeline` y falló por permisos; se eliminó esa creación redundante porque el
 init de PostgreSQL es su propietario. La comparación de sumas en pytest se ajustó a `Decimal`,
 sin alterar datos ni cifras esperadas.
+
+### Prompt 11: Bloque B-1, correcciones de evidencia y controles
+
+**Decisión:** los hashes se calculan antes de leer cada fuente y después de `load()`; una diferencia
+actualiza `audit.run_log` a `failed`. `audit.quarantine` conserva historial por `run_id`; no se
+borra entre corridas. La prueba de idempotencia compara conteos, sumas y cuarentena para todas las
+tablas Silver, y la prueba de hashes compara el manifest contra SHA-256 calculado desde `datos/`.
+
+**Caso de error:** las pruebas originales de inmutabilidad e idempotencia pasaban sin comprobar
+lo que afirmaban: el manifest calculaba `before` y `after` en el mismo punto, y la idempotencia no
+comparaba realmente la segunda corrida. Lección: una prueba que no puede fallar no es una prueba.

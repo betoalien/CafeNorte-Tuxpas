@@ -1,11 +1,12 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 import polars as pl
 
 from cafenorte.contracts import EcommerceOrderRecord, MappingRecord, SnapshotRecord
-from cafenorte.ingest import parse_records
+from cafenorte.ingest import parse_records, snapshot_to_silver
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,6 +16,8 @@ def test_na_is_unknown_not_zero() -> None:
         fecha="2025-10-01", tienda_id="T001", sku_erp="ERP-001", cantidad_en_stock="N/A"
     )
     assert record.cantidad_en_stock == "N/A"
+    silver = snapshot_to_silver(record, uuid4(), datetime.now(UTC))
+    assert silver[3:7] == (None, "N/A", "unknown", "N/A means unknown")
 
 
 def test_null_mapping_is_preserved_and_product_number_is_recoverable() -> None:

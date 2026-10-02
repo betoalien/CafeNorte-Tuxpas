@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
@@ -17,8 +18,8 @@ class SalesRecord(StrictModel):
     tienda_id: str = Field(min_length=1)
     sku: str = Field(min_length=1)
     cantidad: int = Field(gt=0)
-    monto: float = Field(gt=0)
-    moneda: str = Field(min_length=1)
+    monto: Decimal = Field(gt=0)
+    moneda: Literal["MXN"]
     tipo_comprobante: str = Field(min_length=1)
 
 
@@ -37,7 +38,7 @@ class MappingRecord(StrictModel):
 
 class CostRecord(StrictModel):
     fecha_vigencia: date
-    costo_mxn: float = Field(ge=0)
+    costo_mxn: Decimal = Field(ge=0)
     proveedor: str
 
 
@@ -67,14 +68,14 @@ class EcommerceOrderRecord(StrictModel):
     fecha: datetime
     product_handle: str = Field(min_length=1)
     cantidad: int = Field(gt=0)
-    amount: float = Field(gt=0)
-    currency: str = Field(min_length=1)
+    amount: Decimal = Field(gt=0)
+    currency: Literal["MXN", "USD", "EUR"]
 
 
 class ExchangeRateRecord(StrictModel):
     fecha: date
     currency: str = Field(min_length=3, max_length=3)
-    rate_to_mxn: float = Field(gt=0)
+    rate_to_mxn: Decimal = Field(gt=0)
 
 
 class Manifest(StrictModel):
