@@ -187,6 +187,7 @@ def main():
             name: dataset(database, name)
             for name in (
                 "mart_inventory_turnover_top10",
+                "mart_inventory_turnover_by_store",
                 "mart_stockouts_over_3_days",
                 "mart_monthly_channel_growth",
                 "mart_monthly_channel_type_growth",
@@ -195,12 +196,29 @@ def main():
             )
         }
         security = current_app.appbuilder.sm
-        for table in tables.values():
+        manager_table_names = {
+            "mart_inventory_turnover_by_store",
+            "mart_stockouts_over_3_days",
+            "mart_monthly_channel_growth",
+            "mart_negative_margin_products",
+        }
+        for table_name, table in tables.items():
             permission_view = security.add_permission_view_menu(
                 "datasource_access", table.get_perm()
             )
             security.add_permission_role(director, permission_view)
-            security.add_permission_role(gerente, permission_view)
+            if table_name in manager_table_names:
+                security.add_permission_role(gerente, permission_view)
+        gerente.permissions = [
+            permission
+            for permission in gerente.permissions
+            if permission.permission.name != "datasource_access"
+            or permission.view_menu.name
+            in {
+                tables[name].get_perm()
+                for name in manager_table_names
+            }
+        ]
         charts = [
             chart(
                 "P1 · Rotación top 10",
@@ -253,6 +271,16 @@ def main():
                 '"certified_rows", "excluded_rows"]}',
             ),
         ]
+        store_p1 = chart(
+            "P1 · Rotación mi tienda",
+            tables["mart_inventory_turnover_by_store"],
+            "dist_bar",
+            '{"groupby": ["product_id"], "metrics": '
+            '[{"expressionType": "SIMPLE", "column": '
+            '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
+            '"label": "SUM(inventory_turnover_ratio)"}], '
+            '"row_limit": 10, "order_desc": true}',
+        )
         rls(gerente, tables["mart_stockouts_over_3_days"], "gerente_t001_p2", "tienda_id = 'T001'")
         rls(
             gerente,
@@ -261,6 +289,12 @@ def main():
             "tienda_id = 'T001'",
         )
         rls(gerente, tables["mart_monthly_channel_growth"], "gerente_t001_p3", "channel = 'T001'")
+        rls(
+            gerente,
+            tables["mart_inventory_turnover_by_store"],
+            "gerente_t001_p1",
+            "tienda_id = 'T001'",
+        )
 
         dashboard = (
             db.session.query(Dashboard).filter_by(slug="cafenorte-4-respuestas").one_or_none()
@@ -274,12 +308,31 @@ def main():
                 json_metadata="{}",
             )
             db.session.add(dashboard)
-        dashboard.roles = [director, gerente]
+        dashboard.roles = [director]
         dashboard.slices = charts
         positions = dashboard_layout(charts)
         dashboard.position_json = json.dumps(positions, ensure_ascii=False)
         dashboard.json_metadata = json.dumps(
             dashboard_metadata(positions), ensure_ascii=False
+        )
+        store_dashboard = (
+            db.session.query(Dashboard).filter_by(slug="cafenorte-mi-tienda").one_or_none()
+        )
+        if store_dashboard is None:
+            store_dashboard = Dashboard(
+                dashboard_title="CaféNorte — Mi tienda",
+                slug="cafenorte-mi-tienda",
+                published=True,
+                position_json="{}",
+                json_metadata="{}",
+            )
+            db.session.add(store_dashboard)
+        store_dashboard.roles = [gerente]
+        store_dashboard.slices = [store_p1, charts[1], charts[2], charts[4]]
+        store_positions = dashboard_layout(store_dashboard.slices)
+        store_dashboard.position_json = json.dumps(store_positions, ensure_ascii=False)
+        store_dashboard.json_metadata = json.dumps(
+            dashboard_metadata(store_positions), ensure_ascii=False
         )
         try:
             db.session.commit()

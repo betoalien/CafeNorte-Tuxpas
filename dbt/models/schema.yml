@@ -48,6 +48,18 @@ models:
     columns:
       - name: product_id
         tests: [not_null]
+  - name: mart_inventory_turnover_by_store
+    columns:
+      - name: tienda_id
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_store')
+              field: store_id
+      - name: product_id
+        tests: [not_null]
+      - name: ranking
+        tests: [not_null]
   - name: mart_stockouts_over_3_days
     columns:
       - name: tienda_id

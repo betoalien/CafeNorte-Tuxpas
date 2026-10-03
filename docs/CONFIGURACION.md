@@ -169,7 +169,7 @@ prueba de seguridad por tienda en Superset, la paridad de PardoX y Ruff.
 | Usuario | Qué ve |
 |---|---|
 | `director` | Toda la red: las 40 tiendas y el canal en línea |
-| `gerente_t001` | Solo la tienda T001 en quiebres, crecimiento por tienda y margen; la rotación es un indicador de red y la ve completa |
+| `gerente_t001` | Ve las 4 respuestas solo de T001 en su dashboard; no tiene acceso a agregados de red |
 | `admin` | Solo administración de Superset |
 
 Las contraseñas se generan para tu instalación. Para verlas:

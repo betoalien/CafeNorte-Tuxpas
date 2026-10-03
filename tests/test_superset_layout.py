@@ -1,4 +1,5 @@
 import importlib.util
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -21,7 +22,18 @@ def test_dashboard_layout_has_consistent_nodes() -> None:
         if not isinstance(node, dict):
             continue
         text = str(node.get("meta", {}))
-        assert not __import__("re").search(r"T\d{3}", text)
+        assert not re.search(r"T\d{3}", text)
+    assert [positions[f"CHART-{index}"]["meta"]["chartId"] for index in range(6)] == list(range(6))
+
+
+def test_store_dashboard_layout_has_four_charts() -> None:
+    charts = [
+        SimpleNamespace(id=index, slice_name=f"Store chart {index}", uuid=f"store-{index}")
+        for index in range(4)
+    ]
+    positions = bootstrap.dashboard_layout(charts)
+    assert len([key for key in positions if key.startswith("CHART-")]) == 4
+    assert positions["GRID_ID"]["children"] == ["ROW-1", "ROW-2"]
     for _node_id, node in positions.items():
         if not isinstance(node, dict):
             continue
@@ -29,4 +41,3 @@ def test_dashboard_layout_has_consistent_nodes() -> None:
             assert child_id in positions
         for parent_id in node.get("parents", []):
             assert parent_id in positions
-    assert [positions[f"CHART-{index}"]["meta"]["chartId"] for index in range(6)] == list(range(6))

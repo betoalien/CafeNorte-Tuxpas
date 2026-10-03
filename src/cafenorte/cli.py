@@ -41,8 +41,10 @@ SILVER_COUNTS_SQL = (
 )
 GOLD_COUNTS_SQL = (
     "SELECT table_name, row_count FROM ("
-    "SELECT 'analytics.mart_inventory_turnover_top10' AS table_name, count(*) AS row_count "
-    "FROM analytics.mart_inventory_turnover_top10 "
+        "SELECT 'analytics.mart_inventory_turnover_top10' AS table_name, count(*) AS row_count "
+        "FROM analytics.mart_inventory_turnover_top10 "
+        "UNION ALL SELECT 'analytics.mart_inventory_turnover_by_store', count(*) "
+        "FROM analytics.mart_inventory_turnover_by_store "
     "UNION ALL SELECT 'analytics.mart_stockouts_over_3_days', count(*) "
     "FROM analytics.mart_stockouts_over_3_days "
     "UNION ALL SELECT 'analytics.mart_monthly_channel_growth', count(*) "
@@ -466,10 +468,14 @@ def open_browser_target(uri: str) -> None:
 def print_superset(show: bool, env: dict[str, str]) -> None:
     print("\n===== Superset listo =====")
     print(
-        f"URL:        http://127.0.0.1:{env['SUPERSET_PORT']}/superset/dashboard/cafenorte-4-respuestas/"
+        f"URL dirección: http://127.0.0.1:{env['SUPERSET_PORT']}/superset/dashboard/cafenorte-4-respuestas/"
     )
-    print("Usuarios:   director      (ve toda la red, incluido ONLINE)")
-    print("            gerente_t001  (solo tienda T001 en P2/P3/P4)")
+    print(
+        f"URL mi tienda: http://127.0.0.1:{env['SUPERSET_PORT']}"
+        "/superset/dashboard/cafenorte-mi-tienda/"
+    )
+    print("Usuarios:   director      (ve las 4 respuestas de toda la red)")
+    print("            gerente_t001  (ve las 4 respuestas solo de T001)")
     print("            admin         (solo administración)")
     if show:
         passwords = [
@@ -493,13 +499,16 @@ def credentials() -> int:
         return 1
     env = load_env()
     print(
-        f"Superset: http://127.0.0.1:{env['SUPERSET_PORT']}/superset/dashboard/cafenorte-4-respuestas/\n"
+        f"Superset dirección: http://127.0.0.1:{env['SUPERSET_PORT']}"
+        "/superset/dashboard/cafenorte-4-respuestas/\n"
+        f"Superset mi tienda: http://127.0.0.1:{env['SUPERSET_PORT']}"
+        "/superset/dashboard/cafenorte-mi-tienda/\n"
     )
     print("Usuario           Rol                          Contraseña")
     for user, role, key in [
         ("admin", "Administración", "SUPERSET_ADMIN_PASSWORD"),
         ("director", "Toda la red, incluido ONLINE", "DIRECTOR_PASSWORD"),
-        ("gerente_t001", "T001 en P2/P3/P4", "GERENTE_T001_PASSWORD"),
+        ("gerente_t001", "4 respuestas de T001", "GERENTE_T001_PASSWORD"),
     ]:
         print(f"{user:<18}{role:<29}{env.get(key, '')}")
     return 0

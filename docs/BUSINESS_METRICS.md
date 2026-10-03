@@ -36,7 +36,8 @@ mom_growth_pct = (current_month_sales_mxn / previous_month_sales_mxn) - 1
 ```
 
 - La serie certificada agrupa por tipo: `FISICO` suma las 40 tiendas POS y `ECOMMERCE` representa `ONLINE`; también se conserva el detalle por tienda y `ONLINE`.
-- El gerente `gerente_t001` ve únicamente `T001` en el detalle; la serie agregada es un indicador de red sin tienda y permanece visible completa.
+- El director ve las 4 respuestas de toda la red; cada gerente ve las 4 respuestas solo de su tienda, en su propio dashboard.
+- `mart_inventory_turnover_by_store` es una vista operativa para la rotación por tienda; no es una respuesta certificada. Las respuestas certificadas siguen siendo las de red.
 - Ventana: últimos doce meses, anclada en 2026-03-31.
 - Abril de 2025 produce `null` porque no existe marzo de 2025 como base comparable.
 - Una base previa igual a cero produce `null` y una razon explicita.
@@ -67,6 +68,7 @@ gross_margin_mxn = sales_amount_mxn - quantity * effective_unit_cost_mxn
 - `analytics.fct_sales`
 - `analytics.fct_inventory_daily`
 - `analytics.mart_inventory_turnover_top10`
+- `analytics.mart_inventory_turnover_by_store` (vista operativa por tienda; no es una respuesta certificada)
 - `analytics.mart_stockouts_over_3_days`
 - `analytics.mart_monthly_channel_growth`
 - `analytics.mart_monthly_channel_type_growth`

@@ -27,6 +27,7 @@ SILVER_TABLES = [
 ]
 GOLD_TABLES = [
     "mart_inventory_turnover_top10",
+    "mart_inventory_turnover_by_store",
     "mart_stockouts_over_3_days",
     "mart_monthly_channel_growth",
     "mart_negative_margin_products",
@@ -275,7 +276,7 @@ def hidden_credentials() -> str:
     values = [
         ("admin", env("SUPERSET_ADMIN_PASSWORD"), "Administración"),
         ("director", env("DIRECTOR_PASSWORD"), "Toda la red, incluido ONLINE"),
-        ("gerente_t001", env("GERENTE_T001_PASSWORD"), "T001 en P2/P3/P4"),
+        ("gerente_t001", env("GERENTE_T001_PASSWORD"), "4 respuestas de T001"),
     ]
     rows = "".join(
         "<tr><td>"
@@ -353,6 +354,7 @@ def render(force_mode: str | None = None) -> str:
     )
     port = env("SUPERSET_PORT")
     dashboard_url = f"http://127.0.0.1:{port}/superset/dashboard/cafenorte-4-respuestas/"
+    store_dashboard_url = f"http://127.0.0.1:{port}/superset/dashboard/cafenorte-mi-tienda/"
     mode = "skipped" if force_mode == "skipped" else ("full" if force_mode == "full" else run[4])
     links = (
         "<a href='../evidence/benchmark.md'>benchmark</a> · "
@@ -392,9 +394,10 @@ def render(force_mode: str | None = None) -> str:
         f"{rows}</table><h2>Gold (analytics)</h2><table><tr><th>Tabla</th><th>Filas</th></tr>"
         f"{gold_rows}</table><h2>Respuestas</h2><table>{answer_rows}</table>"
         "<h2>Superset listo</h2><p>"
-        f"<a href='{esc(dashboard_url)}'>{esc(dashboard_url)}</a><br>"
-        "<b>director</b>: toda la red, incluido ONLINE<br>"
-        "<b>gerente_t001</b>: solo tienda T001 en P2/P3/P4<br>"
+        f"<b>Dirección</b>: <a href='{esc(dashboard_url)}'>{esc(dashboard_url)}</a><br>"
+        f"<b>Mi tienda</b>: <a href='{esc(store_dashboard_url)}'>{esc(store_dashboard_url)}</a><br>"
+        "<b>director</b>: las 4 respuestas de toda la red<br>"
+        "<b>gerente_t001</b>: las 4 respuestas solo de T001<br>"
         f"<b>admin</b>: solo administración</p>{hidden_credentials()}"
         f"<h2>Validación</h2><pre>{esc(validate)}</pre><p>{links}</p></body></html>"
     )

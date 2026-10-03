@@ -113,7 +113,8 @@ Cada pieza responde a una decisión concreta:
   conciliación de productos, tipo de cambio, costo vigente y métricas viven en un solo lugar,
   versionadas y probadas.
 - **Superset con seguridad por tienda** ([ADR-006](docs/decisions/ADR-006-SUPERSET.md)): el
-  director ve toda la red; un gerente solo ve su tienda.
+  director ve las 4 respuestas de toda la red; cada gerente ve las 4 respuestas solo de su
+  tienda, en su propio dashboard.
 
 El detalle de cada tecnología, sus versiones y el recorrido completo de una venta desde el CSV
 hasta el dashboard están en [`docs/TECH_STACK.md`](docs/TECH_STACK.md).

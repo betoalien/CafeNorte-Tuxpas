@@ -72,7 +72,7 @@ está incluido pero no verificado. En Apple Silicon usa el Python arm64 de uv, n
 
 Cada arranque genera `artifacts/reports/run_report.html`, un reporte estático ignorado por Git con
 run_id, modos, duración, conteos, validación, respuestas, URL de Superset y enlaces de revisión.
-Al final imprime el bloque **Superset listo** con la URL directa de `CaféNorte — 4 respuestas`,
+Al final imprime el bloque **Superset listo** con las URLs directas de `CaféNorte — Dirección` y `CaféNorte — Mi tienda`,
 usuarios y el reporte. Las contraseñas se muestran con `./scripts/credentials.sh`; solo se imprimen
 en el bloque de `./scripts/start.sh --show-credentials` cuando se solicitan explícitamente. Usa
 `--no-browser` o `CI=true` para imprimir solo la ruta.
