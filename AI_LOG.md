@@ -78,4 +78,4 @@ también aumentó la superficie de revisión: los problemas de CLI, PardoX y RLS
 endurecimiento, no en el núcleo. Con un plazo estricto recortaría primero dashboards avanzados,
 portabilidad y benchmarks secundarios, manteniendo las cuatro respuestas, tests, propuesta y AI_LOG.
 
-El registro cronológico completo está en docs/BITACORA_IA_DETALLADA.md.
+El registro cronológico completo está en [docs/BITACORA_IA_DETALLADA.md](docs/BITACORA_IA_DETALLADA.md).
