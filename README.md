@@ -230,3 +230,4 @@ Ver [`docs/PROPUESTA_AWS.md`](docs/PROPUESTA_AWS.md) y su versión en
 | [`docs/decisions/`](docs/decisions/) · [`docs/specs/`](docs/specs/) | Decisiones de arquitectura y especificaciones |
 | [`artifacts/evidence/`](artifacts/evidence/) | Evidencia de cada validación |
 | [`AI_LOG.md`](AI_LOG.md) | Cómo usé IA, qué rechacé y qué se corrigió |
+| [`docs/BITACORA_IA_DETALLADA.md`](docs/BITACORA_IA_DETALLADA.md) | Registro cronológico detallado del trabajo |
