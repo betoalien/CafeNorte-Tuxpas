@@ -71,13 +71,19 @@ def main():
         base, director_token, "cafenorte-4-respuestas"
     )
     manager_positions = dashboard_positions(base, manager_token, "cafenorte-mi-tienda")
-    if len(chart_nodes(director_positions)) != 6:
-        raise AssertionError("director dashboard must contain six charts")
+    if len(chart_nodes(director_positions)) != 10:
+        raise AssertionError("director dashboard must contain ten charts")
     if len(chart_nodes(manager_positions)) != 4:
         raise AssertionError("manager dashboard must contain four charts")
     assert_denied(
         lambda: request(
             base, "/api/v1/dashboard/cafenorte-4-respuestas", manager_token
+        )
+    )
+    dashboard_positions(base, director_token, "cafenorte-calidad-datos")
+    assert_denied(
+        lambda: request(
+            base, "/api/v1/dashboard/cafenorte-calidad-datos", manager_token
         )
     )
     director_charts = request(

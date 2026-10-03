@@ -474,6 +474,10 @@ def print_superset(show: bool, env: dict[str, str]) -> None:
         f"URL mi tienda: http://127.0.0.1:{env['SUPERSET_PORT']}"
         "/superset/dashboard/cafenorte-mi-tienda/"
     )
+    print(
+        f"URL calidad: http://127.0.0.1:{env['SUPERSET_PORT']}"
+        "/superset/dashboard/cafenorte-calidad-datos/"
+    )
     print("Usuarios:   director      (ve las 4 respuestas de toda la red)")
     print("            gerente_t001  (ve las 4 respuestas solo de T001)")
     print("            admin         (solo administración)")
@@ -503,6 +507,8 @@ def credentials() -> int:
         "/superset/dashboard/cafenorte-4-respuestas/\n"
         f"Superset mi tienda: http://127.0.0.1:{env['SUPERSET_PORT']}"
         "/superset/dashboard/cafenorte-mi-tienda/\n"
+        f"Superset calidad: http://127.0.0.1:{env['SUPERSET_PORT']}"
+        "/superset/dashboard/cafenorte-calidad-datos/\n"
     )
     print("Usuario           Rol                          Contraseña")
     for user, role, key in [

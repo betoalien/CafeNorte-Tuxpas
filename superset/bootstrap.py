@@ -96,14 +96,14 @@ def rls(role_item, table_item, name, clause):
     item.tables = [table_item]
 
 
-def dashboard_layout(charts):
+def dashboard_layout(charts, markdowns=(), title="CaféNorte"):
     positions = {
         "DASHBOARD_VERSION_KEY": "v2",
         "ROOT_ID": {"type": "ROOT", "id": "ROOT_ID", "children": ["GRID_ID"]},
         "HEADER_ID": {
             "type": "HEADER",
             "id": "HEADER_ID",
-            "meta": {"text": "CaféNorte — 4 respuestas"},
+            "meta": {"text": title},
         },
         "GRID_ID": {
             "type": "GRID",
@@ -112,7 +112,9 @@ def dashboard_layout(charts):
             "children": [],
         },
     }
-    for index in range(0, len(charts), 2):
+    items = list(markdowns) + list(charts)
+    markdown_counter = 0
+    for index in range(0, len(items), 2):
         row_id = f"ROW-{index // 2 + 1}"
         row = {
             "type": "ROW",
@@ -121,22 +123,33 @@ def dashboard_layout(charts):
             "children": [],
             "meta": {"background": "BACKGROUND_TRANSPARENT"},
         }
-        for chart_item in charts[index : index + 2]:
-            chart_id = f"CHART-{chart_item.id}"
-            row["children"].append(chart_id)
-            positions[chart_id] = {
-                "type": "CHART",
-                "id": chart_id,
-                "children": [],
-                "parents": ["ROOT_ID", "GRID_ID", row_id],
-                "meta": {
-                    "chartId": chart_item.id,
-                    "sliceName": chart_item.slice_name,
-                    "width": 6,
-                    "height": 50,
-                    "uuid": str(getattr(chart_item, "uuid", "")),
-                },
-            }
+        for item in items[index : index + 2]:
+            if isinstance(item, str):
+                markdown_counter += 1
+                node_id = f"MARKDOWN-{markdown_counter}"
+                positions[node_id] = {
+                    "type": "MARKDOWN",
+                    "id": node_id,
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", row_id],
+                    "meta": {"code": item, "width": 12, "height": 20},
+                }
+            else:
+                node_id = f"CHART-{item.id}"
+                positions[node_id] = {
+                    "type": "CHART",
+                    "id": node_id,
+                    "children": [],
+                    "parents": ["ROOT_ID", "GRID_ID", row_id],
+                    "meta": {
+                        "chartId": item.id,
+                        "sliceName": item.slice_name,
+                        "width": 6,
+                        "height": 50,
+                        "uuid": str(getattr(item, "uuid", "")),
+                    },
+                }
+            row["children"].append(node_id)
         positions[row_id] = row
         positions["GRID_ID"]["children"].append(row_id)
     return positions
@@ -223,11 +236,11 @@ def main():
             chart(
                 "P1 · Rotación top 10",
                 tables["mart_inventory_turnover_top10"],
-                "dist_bar",
+                "echarts_timeseries_bar",
                 '{"groupby": ["product_id"], "metrics": '
                 '[{"expressionType": "SIMPLE", "column": '
                 '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
-                '"label": "SUM(inventory_turnover_ratio)"}], '
+                '"label": "Rotación"}], '
                 '"row_limit": 10, "order_desc": true}',
             ),
             chart(
@@ -241,27 +254,28 @@ def main():
             chart(
                 "P3 · Crecimiento por canal",
                 tables["mart_monthly_channel_growth"],
-                "echarts_timeseries",
+                "echarts_timeseries_line",
                 '{"granularity_sqla": "month_start", "time_grain_sqla": "P1M", '
                 '"groupby": ["channel"], "metrics": '
-                '[{"expressionType": "SIMPLE", "column": {"column_name": "sales_mxn"}, '
-                '"aggregate": "SUM", "label": "SUM(sales_mxn)"}]}',
+                '[{"expressionType": "SIMPLE", "column": {"column_name": "mom_growth_pct"}, '
+                '"aggregate": "AVG", "label": "Crecimiento %"}]}',
             ),
             chart(
                 "P3 · Físico vs e-commerce",
                 tables["mart_monthly_channel_type_growth"],
-                "echarts_timeseries",
+                "pivot_table_v2",
                 '{"granularity_sqla": "month_start", "time_grain_sqla": "P1M", '
                 '"groupby": ["channel_type"], "metrics": '
-                '[{"expressionType": "SIMPLE", "column": {"column_name": "sales_mxn"}, '
-                '"aggregate": "SUM", "label": "SUM(sales_mxn)"}]}',
+                '[{"expressionType": "SIMPLE", "column": {"column_name": "mom_growth_pct"}, '
+                '"aggregate": "AVG", "label": "Crecimiento %"}]}',
             ),
             chart(
                 "P4 · Margen negativo",
                 tables["mart_negative_margin_products"],
-                "table",
-                '{"all_columns": ["product_id", "tienda_id", "units", "sales_mxn", '
-                '"gross_margin_mxn"]}',
+                "echarts_timeseries_bar",
+                '{"groupby": ["product_id"], "metrics": [{"expressionType": "SIMPLE", '
+                '"column": {"column_name": "gross_margin_mxn"}, "aggregate": "SUM", '
+                '"label": "Margen MXN"}], "order_desc": false}',
             ),
             chart(
                 "Reconciliación de fuentes",
@@ -274,12 +288,56 @@ def main():
         store_p1 = chart(
             "P1 · Rotación mi tienda",
             tables["mart_inventory_turnover_by_store"],
-            "dist_bar",
+            "echarts_timeseries_bar",
             '{"groupby": ["product_id"], "metrics": '
             '[{"expressionType": "SIMPLE", "column": '
             '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
-            '"label": "SUM(inventory_turnover_ratio)"}], '
+            '"label": "Rotación"}], '
             '"row_limit": 10, "order_desc": true}',
+        )
+        p2_total = chart(
+            "P2 · Tiendas con quiebres > 3 días",
+            tables["mart_stockouts_over_3_days"],
+            "big_number_total",
+            '{"metric": {"expressionType": "SIMPLE", "column": '
+            '{"column_name": "tienda_id"}, "aggregate": "COUNT_DISTINCT", '
+            '"label": "Tiendas con quiebres > 3 días"}, '
+            '"subheader": "Sin quiebres de más de 3 días en el periodo"}',
+        )
+        p4_total = chart(
+            "P4 · Tiendas afectadas",
+            tables["mart_negative_margin_products"],
+            "big_number_total",
+            '{"metric": {"expressionType": "SIMPLE", "column": '
+            '{"column_name": "tienda_id"}, "aggregate": "COUNT_DISTINCT", '
+            '"label": "Tiendas afectadas"}}',
+        )
+        p3_physical = chart(
+            "P3 · Físico abr→mar",
+            tables["mart_monthly_channel_type_growth"],
+            "big_number_total",
+            '{"metric": {"expressionType": "SIMPLE", "column": '
+            '{"column_name": "mom_growth_pct"}, "aggregate": "AVG", '
+            '"label": "Físico abr→mar"}, "adhoc_filters": '
+            '[{"col": "channel_type", "op": "==", "val": "FISICO"}]}',
+        )
+        p3_ecommerce = chart(
+            "P3 · E-commerce abr→mar",
+            tables["mart_monthly_channel_type_growth"],
+            "big_number_total",
+            '{"metric": {"expressionType": "SIMPLE", "column": '
+            '{"column_name": "mom_growth_pct"}, "aggregate": "AVG", '
+            '"label": "E-commerce abr→mar"}, "adhoc_filters": '
+            '[{"col": "channel_type", "op": "==", "val": "ECOMMERCE"}]}',
+        )
+        p3_share = chart(
+            "P3 · E-commerce % de ventas",
+            tables["mart_monthly_channel_type_growth"],
+            "big_number_total",
+            '{"metric": {"expressionType": "SIMPLE", "column": '
+            '{"column_name": "sales_mxn"}, "aggregate": "SUM", '
+            '"label": "E-commerce % de ventas"}, "adhoc_filters": '
+            '[{"col": "channel_type", "op": "==", "val": "ECOMMERCE"}]}',
         )
         rls(gerente, tables["mart_stockouts_over_3_days"], "gerente_t001_p2", "tienda_id = 'T001'")
         rls(
@@ -309,8 +367,24 @@ def main():
             )
             db.session.add(dashboard)
         dashboard.roles = [director]
-        dashboard.slices = charts
-        positions = dashboard_layout(charts)
+        dashboard.dashboard_title = "CaféNorte — Dirección"
+        dashboard.slices = [
+            *charts[:-1], p2_total, p4_total, p3_physical, p3_ecommerce, p3_share
+        ]
+        positions = dashboard_layout(
+            dashboard.slices,
+            (
+                "**P1. Top 10 productos por rotación** · oct 2025 - mar 2026 · "
+                "unidades vendidas ÷ inventario promedio",
+                "**P2. Stockouts mayores a 3 días** · ene - mar 2026 · "
+                "rachas consecutivas de inventario cero",
+                "**P3. Crecimiento mensual** · abr 2025 - mar 2026 · "
+                "variación mes contra mes",
+                "**P4. Productos con margen negativo** · abr 2025 - mar 2026 · "
+                "ventas menos costo efectivo",
+            ),
+            "CaféNorte — Dirección",
+        )
         dashboard.position_json = json.dumps(positions, ensure_ascii=False)
         dashboard.json_metadata = json.dumps(
             dashboard_metadata(positions), ensure_ascii=False
@@ -328,11 +402,46 @@ def main():
             )
             db.session.add(store_dashboard)
         store_dashboard.roles = [gerente]
-        store_dashboard.slices = [store_p1, charts[1], charts[2], charts[4]]
-        store_positions = dashboard_layout(store_dashboard.slices)
+        store_dashboard.dashboard_title = "CaféNorte — Mi tienda"
+        store_dashboard.slices = [store_p1, p2_total, charts[2], p4_total]
+        store_positions = dashboard_layout(
+            store_dashboard.slices,
+            (
+                "**P1. Top 10 productos por rotación** · oct 2025 - mar 2026 · "
+                "unidades vendidas ÷ inventario promedio",
+                "**P2. Stockouts mayores a 3 días** · ene - mar 2026 · "
+                "rachas consecutivas de inventario cero",
+                "**P3. Crecimiento mensual** · abr 2025 - mar 2026 · variación mes contra mes",
+                "**P4. Productos con margen negativo** · abr 2025 - mar 2026 · ventas menos costo",
+            ),
+            "CaféNorte — Mi tienda",
+        )
         store_dashboard.position_json = json.dumps(store_positions, ensure_ascii=False)
         store_dashboard.json_metadata = json.dumps(
             dashboard_metadata(store_positions), ensure_ascii=False
+        )
+        quality_dashboard = (
+            db.session.query(Dashboard).filter_by(slug="cafenorte-calidad-datos").one_or_none()
+        )
+        if quality_dashboard is None:
+            quality_dashboard = Dashboard(
+                dashboard_title="CaféNorte — Calidad de datos",
+                slug="cafenorte-calidad-datos",
+                published=True,
+                position_json="{}",
+                json_metadata="{}",
+            )
+            db.session.add(quality_dashboard)
+        quality_dashboard.roles = [director]
+        quality_dashboard.slices = [charts[-1]]
+        quality_positions = dashboard_layout(
+            [charts[-1]],
+            ("**Calidad de datos** · filas certificadas y excluidas por fuente",),
+            "CaféNorte — Calidad de datos",
+        )
+        quality_dashboard.position_json = json.dumps(quality_positions, ensure_ascii=False)
+        quality_dashboard.json_metadata = json.dumps(
+            dashboard_metadata(quality_positions), ensure_ascii=False
         )
         try:
             db.session.commit()

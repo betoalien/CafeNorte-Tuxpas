@@ -355,6 +355,7 @@ def render(force_mode: str | None = None) -> str:
     port = env("SUPERSET_PORT")
     dashboard_url = f"http://127.0.0.1:{port}/superset/dashboard/cafenorte-4-respuestas/"
     store_dashboard_url = f"http://127.0.0.1:{port}/superset/dashboard/cafenorte-mi-tienda/"
+    quality_dashboard_url = f"http://127.0.0.1:{port}/superset/dashboard/cafenorte-calidad-datos/"
     mode = "skipped" if force_mode == "skipped" else ("full" if force_mode == "full" else run[4])
     links = (
         "<a href='../evidence/benchmark.md'>benchmark</a> · "
@@ -396,6 +397,8 @@ def render(force_mode: str | None = None) -> str:
         "<h2>Superset listo</h2><p>"
         f"<b>Dirección</b>: <a href='{esc(dashboard_url)}'>{esc(dashboard_url)}</a><br>"
         f"<b>Mi tienda</b>: <a href='{esc(store_dashboard_url)}'>{esc(store_dashboard_url)}</a><br>"
+        f"<b>Calidad</b>: <a href='{esc(quality_dashboard_url)}'>"
+        f"{esc(quality_dashboard_url)}</a><br>"
         "<b>director</b>: las 4 respuestas de toda la red<br>"
         "<b>gerente_t001</b>: las 4 respuestas solo de T001<br>"
         f"<b>admin</b>: solo administración</p>{hidden_credentials()}"

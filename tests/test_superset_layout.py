@@ -41,3 +41,19 @@ def test_store_dashboard_layout_has_four_charts() -> None:
             assert child_id in positions
         for parent_id in node.get("parents", []):
             assert parent_id in positions
+
+
+def test_quality_dashboard_layout_has_markdown_and_chart() -> None:
+    chart = SimpleNamespace(id=99, slice_name="Reconciliación", uuid="quality")
+    positions = bootstrap.dashboard_layout(
+        [chart], ("**Calidad de datos** · filas certificadas y excluidas",),
+        "CaféNorte — Calidad de datos",
+    )
+    assert positions["ROOT_ID"]["children"] == ["GRID_ID"]
+    assert positions["GRID_ID"]["children"] == ["ROW-1"]
+    assert positions["MARKDOWN-1"]["type"] == "MARKDOWN"
+    assert positions["CHART-99"]["meta"]["chartId"] == 99
+    for node in positions.values():
+        if isinstance(node, dict):
+            for child_id in node.get("children", []):
+                assert child_id in positions
