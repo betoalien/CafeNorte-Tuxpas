@@ -75,11 +75,11 @@ def main():
         raise AssertionError("director dashboard must contain six charts")
     if len(chart_nodes(manager_positions)) != 4:
         raise AssertionError("manager dashboard must contain four charts")
-    director_dashboard_for_manager = request(
-        base, "/api/v1/dashboard/cafenorte-4-respuestas", manager_token
-    )["result"]
-    if any(role["name"] == "gerente_t001" for role in director_dashboard_for_manager["roles"]):
-        raise AssertionError("manager is assigned to the director dashboard")
+    assert_denied(
+        lambda: request(
+            base, "/api/v1/dashboard/cafenorte-4-respuestas", manager_token
+        )
+    )
     director_charts = request(
         base, "/api/v1/chart/?q=(page:0,page_size:100)", director_token
     )["result"]
@@ -142,7 +142,7 @@ def main():
     print(f"director P3 rows={len(p3_director)} channels={sorted(channels)}")
     print(f"negative control: director without T001 rule sees {len(channels)} channels")
     print(f"network dashboard charts={len(chart_nodes(director_positions))}")
-    print("director dashboard role access for manager: denied (role not assigned)")
+    print("director dashboard access for manager: denied (HTTP 403/404)")
     print("Superset API data queries and RLS: PASS")
 
 
