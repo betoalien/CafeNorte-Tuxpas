@@ -1,4 +1,6 @@
-Registro cronológico de trabajo; el resumen evaluable está en AI_LOG.md
+Registro cronológico de trabajo; el resumen evaluable está en AI_LOG.md.
+
+Se escribió como registro de sesión; cuando dice “el propietario” se refiere a mí, Alberto.
 
 ## Apéndice cronológico
 
@@ -6,7 +8,7 @@ Bitácora iniciada durante la fase de análisis y arquitectura.
 
 ## Herramientas
 
-- OpenAI Codex, familia GPT-5; no se afirma un identificador más específico porque la interfaz no lo mostró.
+- OpenAI Codex (versión de escritorio) con GPT 5.6 Luna Light, como implementador.
 - Claude Code (Claude Opus 5.5), utilizado como revisor técnico independiente.
 - Herramientas locales de inspección de archivos y perfilado de datos.
 - Documentación oficial de AWS, dbt y PardoX para validar capacidades y costos.
