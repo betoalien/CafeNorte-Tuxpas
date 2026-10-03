@@ -236,12 +236,9 @@ def main():
             chart(
                 "P1 · Rotación top 10",
                 tables["mart_inventory_turnover_top10"],
-                "pivot_table_v2",
-                '{"groupby": ["product_id"], "metrics": '
-                '[{"expressionType": "SIMPLE", "column": '
-                '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
-                '"label": "Rotación"}], '
-                '"row_limit": 10, "order_desc": true}',
+                "table",
+                '{"all_columns": ["product_id", "units_sold", '
+                '"average_valid_inventory_units", "inventory_turnover_ratio", "ranking"]}',
             ),
             chart(
                 "P2 · Stockouts > 3 días",
@@ -272,7 +269,7 @@ def main():
             chart(
                 "P4 · Margen negativo",
                 tables["mart_negative_margin_products"],
-                "echarts_timeseries_bar",
+                "pivot_table_v2",
                 '{"groupby": ["product_id"], "metrics": [{"expressionType": "SIMPLE", '
                 '"column": {"column_name": "gross_margin_mxn"}, "aggregate": "SUM", '
                 '"label": "Margen MXN"}], "order_desc": false}',
@@ -288,12 +285,9 @@ def main():
         store_p1 = chart(
             "P1 · Rotación mi tienda",
             tables["mart_inventory_turnover_by_store"],
-            "pivot_table_v2",
-            '{"groupby": ["product_id"], "metrics": '
-            '[{"expressionType": "SIMPLE", "column": '
-            '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
-            '"label": "Rotación"}], '
-            '"row_limit": 10, "order_desc": true}',
+            "table",
+            '{"all_columns": ["product_id", "units_sold", '
+            '"average_valid_inventory_units", "inventory_turnover_ratio", "ranking"]}',
         )
         p2_total = chart(
             "P2 · Tiendas con quiebres > 3 días",
@@ -312,32 +306,33 @@ def main():
             '{"column_name": "tienda_id"}, "aggregate": "COUNT_DISTINCT", '
             '"label": "Tiendas afectadas"}}',
         )
+        p4_detail = chart(
+            "P4 · Detalle de margen negativo",
+            tables["mart_negative_margin_products"],
+            "table",
+            '{"all_columns": ["product_id", "tienda_id", "units", "sales_mxn", '
+            '"gross_margin_mxn"]}',
+        )
         p3_physical = chart(
             "P3 · Físico abr→mar",
             tables["mart_monthly_channel_type_growth"],
-            "big_number_total",
-            '{"metric": {"expressionType": "SIMPLE", "column": '
-            '{"column_name": "mom_growth_pct"}, "aggregate": "AVG", '
-            '"label": "Físico abr→mar"}, "adhoc_filters": '
-            '[{"col": "channel_type", "op": "==", "val": "FISICO"}]}',
+            "table",
+            '{"all_columns": ["channel_type", "month_start", "mom_growth_pct"]}',
+            '',
         )
         p3_ecommerce = chart(
             "P3 · E-commerce abr→mar",
             tables["mart_monthly_channel_type_growth"],
-            "big_number_total",
-            '{"metric": {"expressionType": "SIMPLE", "column": '
-            '{"column_name": "mom_growth_pct"}, "aggregate": "AVG", '
-            '"label": "E-commerce abr→mar"}, "adhoc_filters": '
-            '[{"col": "channel_type", "op": "==", "val": "ECOMMERCE"}]}',
+            "table",
+            '{"all_columns": ["channel_type", "month_start", "mom_growth_pct"]}',
+            '',
         )
         p3_share = chart(
             "P3 · E-commerce % de ventas",
             tables["mart_monthly_channel_type_growth"],
-            "big_number_total",
-            '{"metric": {"expressionType": "SIMPLE", "column": '
-            '{"column_name": "sales_mxn"}, "aggregate": "SUM", '
-            '"label": "E-commerce % de ventas"}, "adhoc_filters": '
-            '[{"col": "channel_type", "op": "==", "val": "ECOMMERCE"}]}',
+            "table",
+            '{"all_columns": ["channel_type", "month_start", "sales_mxn"]}',
+            '',
         )
         rls(gerente, tables["mart_stockouts_over_3_days"], "gerente_t001_p2", "tienda_id = 'T001'")
         rls(
@@ -373,17 +368,7 @@ def main():
         ]
         positions = dashboard_layout(
             dashboard.slices,
-            (
-                "**P1. Top 10 productos por rotación** · oct 2025 - mar 2026 · "
-                "unidades vendidas ÷ inventario promedio",
-                "**P2. Stockouts mayores a 3 días** · ene - mar 2026 · "
-                "rachas consecutivas de inventario cero",
-                "**P3. Crecimiento mensual** · abr 2025 - mar 2026 · "
-                "variación mes contra mes",
-                "**P4. Productos con margen negativo** · abr 2025 - mar 2026 · "
-                "ventas menos costo efectivo",
-            ),
-            "CaféNorte — Dirección",
+            title="CaféNorte — Dirección",
         )
         dashboard.position_json = json.dumps(positions, ensure_ascii=False)
         dashboard.json_metadata = json.dumps(
@@ -403,18 +388,10 @@ def main():
             db.session.add(store_dashboard)
         store_dashboard.roles = [gerente]
         store_dashboard.dashboard_title = "CaféNorte — Mi tienda"
-        store_dashboard.slices = [store_p1, p2_total, charts[2], p4_total]
+        store_dashboard.slices = [store_p1, p2_total, charts[1], charts[2], p4_total, p4_detail]
         store_positions = dashboard_layout(
             store_dashboard.slices,
-            (
-                "**P1. Top 10 productos por rotación** · oct 2025 - mar 2026 · "
-                "unidades vendidas ÷ inventario promedio",
-                "**P2. Stockouts mayores a 3 días** · ene - mar 2026 · "
-                "rachas consecutivas de inventario cero",
-                "**P3. Crecimiento mensual** · abr 2025 - mar 2026 · variación mes contra mes",
-                "**P4. Productos con margen negativo** · abr 2025 - mar 2026 · ventas menos costo",
-            ),
-            "CaféNorte — Mi tienda",
+            title="CaféNorte — Mi tienda",
         )
         store_dashboard.position_json = json.dumps(store_positions, ensure_ascii=False)
         store_dashboard.json_metadata = json.dumps(
@@ -436,8 +413,7 @@ def main():
         quality_dashboard.slices = [charts[-1]]
         quality_positions = dashboard_layout(
             [charts[-1]],
-            ("**Calidad de datos** · filas certificadas y excluidas por fuente",),
-            "CaféNorte — Calidad de datos",
+            title="CaféNorte — Calidad de datos",
         )
         quality_dashboard.position_json = json.dumps(quality_positions, ensure_ascii=False)
         quality_dashboard.json_metadata = json.dumps(
