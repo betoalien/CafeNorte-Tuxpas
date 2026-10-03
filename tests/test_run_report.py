@@ -4,6 +4,7 @@ import html
 import importlib.util
 import os
 import re
+from decimal import Decimal
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -52,3 +53,19 @@ def test_report_skipped_and_full(tmp_path: Path) -> None:
         content = run_report.render(mode)
         (tmp_path / f"{mode}.html").write_text(content, encoding="utf-8")
         _assert_report(content)
+
+
+def test_p3_summary_matches_readme_format() -> None:
+    summary = run_report.p3_summary(
+        (Decimal("20721035.50"), Decimal("1000000"), Decimal("1027000")),
+        (Decimal("4228882.71"), Decimal("1000000"), Decimal("915000")),
+        (Decimal("0.09"), Decimal("0.8")),
+        ("T006", Decimal("0.8")),
+        ("T032", Decimal("-0.46")),
+    )
+    expected = (
+        "Físico 20.72 M MXN (+2.7% abr→mar); e-commerce 4.23 M MXN "
+        "(\u22128.5%); e-commerce = 16.9% de las ventas"
+    )
+    assert expected in summary
+    assert expected in (ROOT / "README.md").read_text(encoding="utf-8")
