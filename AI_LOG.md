@@ -67,12 +67,22 @@ las filas existentes conservan su `run_id`.
 
 ## Errores concretos y autocrítica
 
-Los errores detectados fueron: cobertura 100% por contar `sku_erp` nulo como explícito; P1 inflada
-unas 40 veces por mezclar red con tienda; RLS declarado pero no aplicado; una carga “incremental”
-que recargaba todo; un benchmark PardoX contra una ruta que no hacía trabajo; P4 sin filtro de
-ventana, que también escapó inicialmente al revisor; y un refactor de CLI que perdió validaciones.
-El patrón fue **declarar en vez de ejecutar**. Cada caso se corrigió con una prueba que podía fallar,
-un recálculo independiente o una consulta real.
+**Alucinaciones de Codex que corregí.** Cobertura 100% por contar `sku_erp` nulo como explícito;
+P1 inflada unas 40 veces por mezclar red con tienda; RLS declarado en YAML pero no aplicado; una
+carga “incremental” que en realidad recargaba todo; un benchmark de PardoX contra una ruta que no
+hacía trabajo; P4 sin filtro de ventana (que también se le escapó al revisor); y un refactor de CLI
+que perdió validaciones. El patrón fue **declarar en vez de ejecutar**: lo detecté recalculando desde
+las fuentes y lo corregí con una prueba que podía fallar.
+
+**Dashboards de Superset, corregidos a mano.** Codex generó un layout incompleto (sin `ROOT_ID` ni
+`GRID_ID`) y charts con un tipo de gráfica no registrado y métricas mal formadas: los charts abrían
+sueltos, pero el dashboard se quedaba cargando. Los tests pasaban porque consultaban la API y nunca
+renderizaban la página; lo vi al abrirlo en el navegador. Corregí yo la configuración de los charts
+y después se agregaron pruebas del layout.
+
+**Sugerencias de la IA que rechacé o revertí.** Además del caso CFDI, Claude sugirió un aviso en P2
+que, al gerente de una tienda, le mostraba datos de toda la red. Lo revertí porque contradecía la
+seguridad por tienda; ahora una prueba impide IDs de tienda en el texto del dashboard.
 
 Mi responsabilidad al 100% son las decisiones de alcance y stack, las interpretaciones de negocio,
 la integración de PardoX y el criterio para aceptar o rechazar sugerencias. La IA aportó volumen de
