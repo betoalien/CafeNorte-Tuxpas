@@ -236,7 +236,7 @@ def main():
             chart(
                 "P1 · Rotación top 10",
                 tables["mart_inventory_turnover_top10"],
-                "echarts_timeseries_bar",
+                "pivot_table_v2",
                 '{"groupby": ["product_id"], "metrics": '
                 '[{"expressionType": "SIMPLE", "column": '
                 '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
@@ -288,7 +288,7 @@ def main():
         store_p1 = chart(
             "P1 · Rotación mi tienda",
             tables["mart_inventory_turnover_by_store"],
-            "echarts_timeseries_bar",
+            "pivot_table_v2",
             '{"groupby": ["product_id"], "metrics": '
             '[{"expressionType": "SIMPLE", "column": '
             '{"column_name": "inventory_turnover_ratio"}, "aggregate": "SUM", '
