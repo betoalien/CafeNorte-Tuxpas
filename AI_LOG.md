@@ -2,17 +2,19 @@
 
 ## Herramientas y flujo requerido por el reto
 
-Usé OpenAI Codex desde la aplicación de escritorio, con el modelo que mostró la interfaz,
+Usé OpenAI Codex en su versión de escritorio con GPT 5.6 Luna Light como implementador,
 y Claude Code con Claude Opus 5.5 como revisor independiente. También usé Python 3.12,
 uv, Polars, Pydantic, PostgreSQL, dbt, Docker/Compose, Superset, ShellCheck, Ruff,
 pytest y la documentación oficial de PardoX y AWS.
 
-El flujo fue deliberadamente separado: Codex implementó, Claude revisó contra los archivos
-originales y el propietario decidió. Trabajé en bloques pequeños con la instrucción
-“detente al terminar”, cada uno con validación y commit. No usé subagentes. Claude Code
-trabajó sobre el repositorio en la Mac del propietario mediante el puente de dispositivos
-de la app de Claude (herramientas MCP remote-devices); Codex trabajó directamente en el
-repositorio local.
+Separé los roles a propósito: Codex implementó, Claude revisó contra los archivos originales
+y yo decidí qué se aceptaba. Diseñé ese arnés de trabajo (harness engineering) para que cada
+agente tuviera un contexto acotado: así aproveché mejor los tokens y repartir las tareas entre
+Codex y Claude me dio más margen que exprimir un solo agente. Trabajé en bloques pequeños con la
+instrucción “detente al terminar”, cada uno con validación y commit. No usé subagentes ni el modo
+plan de las herramientas; el análisis lo hice primero, en un prompt sin código (prompt 1).
+Claude Code trabajó sobre el repositorio en mi Mac mediante el puente de dispositivos de la app
+de Claude (herramientas MCP remote-devices); Codex trabajó directamente en el repositorio local.
 
 ## Prompts clave y decisiones
 
@@ -43,13 +45,15 @@ conciliación, FX, costos y marts.
 **Decisión:** aceptar con restricciones. PardoX procesa `sales.csv` de forma aislada; Polars sigue
 siendo referencia y ninguna ruta experimental reemplaza Silver.
 
-### 4. CFDI y criterio de negocio
+### 4. Caso de error: CFDI y criterio de negocio
 
-**Prompt:** Claude propuso interpretar `tipo_comprobante` según el SAT: restar E y excluir P/T/N.
+Este no fue un prompt mío, sino una propuesta de la IA que rechacé.
 
-**Respuesta:** esa regla habría invertido u omitido aproximadamente MXN 1.4 M de ventas.
+**Propuesta de Claude:** interpretar `tipo_comprobante` según el SAT: restar E y excluir P/T/N.
 
-**Decisión:** el propietario rechazó la propuesta. El perfilado confirmó cantidades positivas y
+**Impacto:** esa regla habría invertido u omitido aproximadamente MXN 1.4 M de ventas.
+
+**Decisión:** la rechacé. El perfilado confirmó cantidades positivas y
 precios unitarios superpuestos en los cinco tipos: se cuenta, no se suma ni se resta.
 
 ### 5. Carga incremental
