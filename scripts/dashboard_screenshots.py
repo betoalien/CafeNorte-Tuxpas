@@ -21,11 +21,18 @@ def capture(page, port, username, password, slug):
     )
     page.get_by_text("CaféNorte", exact=False).first.wait_for(timeout=60000)
     page.locator(".loading, .ant-spin-spinning").wait_for(state="detached", timeout=60000)
+    page.wait_for_timeout(4000)
     body = page.locator("body").inner_text()
+    page.screenshot(path=str(OUTPUT / f"{username}-{slug}.png"), full_page=True)
+    for marker in ("Unexpected error", "Error:"):
+        if marker in body:
+            start = body.index(marker)
+            print(f"[{slug}] {body[max(0, start - 200) : start + 400]}")
     if "Unexpected error" in body or "Error:" in body:
         raise AssertionError(f"dashboard {slug} rendered an error")
-    if "No results were returned" in body and slug != "cafenorte-mi-tienda":
+    if "No results were returned" in body or "Total (Sum)" in body:
         raise AssertionError(f"dashboard {slug} rendered an unexpected empty result")
+    page.wait_for_timeout(4000)
     page.screenshot(path=str(OUTPUT / f"{username}-{slug}.png"), full_page=True)
 
 
